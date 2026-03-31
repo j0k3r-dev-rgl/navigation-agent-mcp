@@ -21,10 +21,12 @@ if (argv.includes("--describe-tools")) {
     `${JSON.stringify(
       {
         name: server.name,
+        version: server.version,
         workspaceRoot: server.workspaceRoot,
         toolCount: server.tools.length,
-        tools: server.listTools().map(({ execute, ...tool }) => tool),
-        runtime: "navigation-json-stdio",
+        tools: server.listTools().map(({ execute, sdkInputSchema, ...tool }) => tool),
+        runtime: "navigation-sdk-stdio",
+        transports: ["stdio", "stdio-legacy"],
       },
       null,
       2,
@@ -32,9 +34,11 @@ if (argv.includes("--describe-tools")) {
   );
 } else if ((getFlagValue(argv, "--transport") ?? "stdio") === "stdio") {
   await server.serveStdio();
+} else if (getFlagValue(argv, "--transport") === "stdio-legacy") {
+  await server.serveStdioLegacy();
 } else {
   process.stderr.write(
-    "Only --transport stdio is implemented in the TypeScript runtime for Sprint 1.\n",
+    "Supported transports: stdio, stdio-legacy.\n",
   );
   process.exitCode = 1;
 }

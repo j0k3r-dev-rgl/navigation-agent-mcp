@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 
 import { createMcpServer } from "../../src/app/createMcpServer.ts";
 import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
-import type { PythonFallbackBridge } from "../../src/runtime/pythonFallback.ts";
 
 class MockEngineClient implements EngineClient {
   requests: Array<{ capability: string; payload: unknown }> = [];
@@ -98,34 +98,10 @@ class MockEngineClient implements EngineClient {
   async close() {}
 }
 
-class MockFallbackBridge implements PythonFallbackBridge {
-  readonly workspaceRoot = "/workspace";
-  calls: string[] = [];
-
-  async execute(toolName: string) {
-    this.calls.push(toolName);
-    return {
-      tool: toolName,
-      status: "ok" as const,
-      summary: `Executed ${toolName}`,
-      data: { ok: true },
-      errors: [],
-      meta: {
-        query: {},
-        resolvedPath: null,
-        truncated: false,
-        counts: {},
-        detection: {},
-      },
-    };
-  }
-}
-
 test("registers the stable six code tools with expected schema defaults", () => {
   const server = createMcpServer({
     workspaceRoot: "/workspace",
     engineClient: new MockEngineClient(),
-    fallbackBridge: new MockFallbackBridge(),
   });
 
   const tools = server.listTools();
@@ -164,17 +140,14 @@ test("registers the stable six code tools with expected schema defaults", () => 
 
 test("migrated and compatibility tools route through the expected backend", async () => {
   const engineClient = new MockEngineClient();
-  const fallbackBridge = new MockFallbackBridge();
   const server = createMcpServer({
     workspaceRoot: "/workspace",
     engineClient,
-    fallbackBridge,
   });
 
   const result = await server.callTool("code.search_text", { query: "inspect_tree" });
   assert.equal((result as { tool: string }).tool, "code.search_text");
   assert.equal(engineClient.requests[0]?.capability, "workspace.search_text");
-  assert.deepEqual(fallbackBridge.calls, []);
 
   const findSymbolResult = await server.callTool("code.find_symbol", {
     symbol: "loader",
@@ -195,5 +168,37 @@ test("migrated and compatibility tools route through the expected backend", asyn
   });
   assert.equal((callerTraceResult as { tool: string }).tool, "code.trace_callers");
   assert.equal(engineClient.requests[3]?.capability, "workspace.trace_callers");
-  assert.deepEqual(fallbackBridge.calls, []);
+});
+
+test("--describe-tools stays transport-agnostic while reporting the SDK runtime", () => {
+  const response = spawnSync(
+    "node",
+    [
+      "--experimental-strip-types",
+      "./src/bin/navigation-mcp.ts",
+      "--describe-tools",
+      "--workspace-root",
+      "/workspace",
+    ],
+    {
+      cwd: "/home/j0k3r/navigation-agent-mcp/packages/mcp-server",
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(response.status, 0);
+
+  const described = JSON.parse(response.stdout) as {
+    runtime: string;
+    transports: string[];
+    toolCount: number;
+    tools: Array<Record<string, unknown>>;
+  };
+
+  assert.equal(described.runtime, "navigation-sdk-stdio");
+  assert.deepEqual(described.transports, ["stdio", "stdio-legacy"]);
+  assert.equal(described.toolCount, 6);
+  assert.equal(described.tools.length, 6);
+  assert.ok(described.tools.every((tool) => !Object.hasOwn(tool, "execute")));
+  assert.ok(described.tools.every((tool) => !Object.hasOwn(tool, "sdkInputSchema")));
 });

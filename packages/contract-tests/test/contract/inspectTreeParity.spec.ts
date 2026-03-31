@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const repoRoot = "/home/j0k3r/navigation-agent-mcp";
 
@@ -38,75 +40,58 @@ test("TS inspect_tree remains parity-compatible with the Python oracle when avai
   const engineScriptPath = path.join(tempDir, "engine_stub.py");
   await fs.writeFile(engineScriptPath, buildEngineStubScript(), "utf8");
 
-  const tsChild = spawn(
-    "node",
-    [
-      "--experimental-strip-types",
-      "packages/mcp-server/src/bin/navigation-mcp.ts",
-      "--transport",
-      "stdio",
-      "--workspace-root",
-      tempDir,
-    ],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        NAVIGATION_MCP_RUST_ENGINE_CMD: JSON.stringify(["python", engineScriptPath]),
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    },
-  );
+  const { client, transport } = await createSdkClient(tempDir, {
+    NAVIGATION_MCP_RUST_ENGINE_CMD: JSON.stringify(["python", engineScriptPath]),
+  });
 
   const pythonResponse = await callPythonOracle(tempDir, {
     max_depth: 2,
     include_hidden: true,
   });
-  const tsResponse = await sendRequest(tsChild, {
-    id: 1,
-    method: "call_tool",
-    params: {
-      name: "code.inspect_tree",
-      arguments: {
-        max_depth: 2,
-        include_hidden: true,
-      },
-    },
-  });
+  try {
+    const tsResponse = extractEnvelope(
+      await client.callTool({
+        name: "code.inspect_tree",
+        arguments: {
+          max_depth: 2,
+          include_hidden: true,
+        },
+      }),
+    );
 
-  tsChild.kill();
-
-  assert.equal(tsResponse.ok, true);
-  assert.equal(tsResponse.result.tool, pythonResponse.tool);
-  assert.equal(tsResponse.result.status, pythonResponse.status);
-  assert.equal(tsResponse.result.summary, pythonResponse.summary);
-  assert.equal(tsResponse.result.data.root, pythonResponse.data.root);
-  assert.equal(tsResponse.result.data.entryCount, pythonResponse.data.entryCount);
-  assert.deepEqual(tsResponse.result.meta.resolvedPath, pythonResponse.meta.resolvedPath);
-  assert.deepEqual(tsResponse.result.meta.truncated, pythonResponse.meta.truncated);
-  assert.deepEqual(tsResponse.result.meta.counts, pythonResponse.meta.counts);
-  assert.deepEqual(
-    tsResponse.result.data.items.map((item: { path: string; name: string; type: string; depth: number; extension: string | null }) => ({
-      path: item.path,
-      name: item.name,
-      type: item.type,
-      depth: item.depth,
-      extension: item.extension ?? null,
-    })),
-    pythonResponse.data.items.map((item: { path: string; name: string; type: string; depth: number; extension?: string | null }) => ({
-      path: item.path,
-      name: item.name,
-      type: item.type,
-      depth: item.depth,
-      extension: item.extension ?? null,
-    })),
-  );
+    assert.equal(tsResponse.tool, pythonResponse.tool);
+    assert.equal(tsResponse.status, pythonResponse.status);
+    assert.equal(tsResponse.summary, pythonResponse.summary);
+    assert.equal(tsResponse.data.root, pythonResponse.data.root);
+    assert.equal(tsResponse.data.entryCount, pythonResponse.data.entryCount);
+    assert.deepEqual(tsResponse.meta.resolvedPath, pythonResponse.meta.resolvedPath);
+    assert.deepEqual(tsResponse.meta.truncated, pythonResponse.meta.truncated);
+    assert.deepEqual(tsResponse.meta.counts, pythonResponse.meta.counts);
+    assert.deepEqual(
+      tsResponse.data.items.map((item: { path: string; name: string; type: string; depth: number; extension: string | null }) => ({
+        path: item.path,
+        name: item.name,
+        type: item.type,
+        depth: item.depth,
+        extension: item.extension ?? null,
+      })),
+      pythonResponse.data.items.map((item: { path: string; name: string; type: string; depth: number; extension?: string | null }) => ({
+        path: item.path,
+        name: item.name,
+        type: item.type,
+        depth: item.depth,
+        extension: item.extension ?? null,
+      })),
+    );
+  } finally {
+    await transport.close();
+  }
 });
 
 async function callPythonOracle(
   workspaceRoot: string,
   payload: Record<string, unknown>,
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const script = [
     "import asyncio",
     "import json",
@@ -268,40 +253,50 @@ for line in sys.stdin:
 `;
 }
 
-async function sendRequest(
-  child: ChildProcessWithoutNullStreams,
-  request: Record<string, unknown>,
-): Promise<any> {
-  child.stdin.write(`${JSON.stringify(request)}\n`);
-
-  return new Promise((resolve, reject) => {
-    let buffer = "";
-    const onError = (error: Error) => {
-      cleanup();
-      reject(error);
-    };
-    const onExit = (code: number | null) => {
-      cleanup();
-      reject(new Error(`TypeScript runtime exited before responding (code=${code ?? "null"}).`));
-    };
-    const onData = (chunk: Buffer | string) => {
-      buffer += chunk.toString();
-      const newlineIndex = buffer.indexOf("\n");
-      if (newlineIndex === -1) {
-        return;
-      }
-      const line = buffer.slice(0, newlineIndex);
-      cleanup();
-      resolve(JSON.parse(line));
-    };
-    const cleanup = () => {
-      child.stdout.off("data", onData);
-      child.off("error", onError);
-      child.off("exit", onExit);
-    };
-
-    child.stdout.on("data", onData);
-    child.once("error", onError);
-    child.once("exit", onExit);
+async function createSdkClient(
+  workspaceRoot: string,
+  extraEnv: Record<string, string>,
+) {
+  const client = new Client(
+    { name: "navigation-agent-contract-tests", version: "1.0.0" },
+    { capabilities: {} },
+  );
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: [
+      "--experimental-strip-types",
+      "packages/mcp-server/src/bin/navigation-mcp.ts",
+      "--transport",
+      "stdio",
+      "--workspace-root",
+      workspaceRoot,
+    ],
+    cwd: repoRoot,
+    env: {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      ),
+      ...extraEnv,
+    },
+    stderr: "pipe",
   });
+
+  await client.connect(transport);
+
+  return { client, transport };
+}
+
+function extractEnvelope(result: { structuredContent?: unknown; content?: Array<{ type: string; text?: string }> }) {
+  if (result.structuredContent && typeof result.structuredContent === "object") {
+    return result.structuredContent as Record<string, unknown>;
+  }
+
+  const textBlock = result.content?.find((block) => block.type === "text" && typeof block.text === "string");
+  if (!textBlock?.text) {
+    throw new Error("SDK tool result did not include structuredContent or JSON text content.");
+  }
+
+  return JSON.parse(textBlock.text) as Record<string, unknown>;
 }

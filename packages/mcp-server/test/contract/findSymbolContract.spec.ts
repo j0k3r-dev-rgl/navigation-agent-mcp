@@ -18,7 +18,7 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
       "--experimental-strip-types",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
-      "stdio",
+      "stdio-legacy",
       "--workspace-root",
       tempDir,
     ],

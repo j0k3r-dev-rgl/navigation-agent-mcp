@@ -18,7 +18,7 @@ test("stdio runtime returns migrated search_text responses through the Rust engi
       "--experimental-strip-types",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
-      "stdio",
+      "stdio-legacy",
       "--workspace-root",
       tempDir,
     ],

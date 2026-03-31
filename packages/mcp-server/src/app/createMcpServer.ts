@@ -1,7 +1,5 @@
-import {
-  createPythonFallbackBridge,
-  type PythonFallbackBridge,
-} from "../runtime/pythonFallback.ts";
+import { McpServer as SdkMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.ts";
 import { createFindSymbolService } from "../services/findSymbolService.ts";
 import { createInspectTreeService } from "../services/inspectTreeService.ts";
@@ -13,15 +11,16 @@ import {
   registerCodeTools,
   type RegisteredCodeTool,
 } from "../tools/registerCodeTools.ts";
+import type { ResponseEnvelope } from "../contracts/public/common.ts";
 
 export interface CreateMcpServerOptions {
   workspaceRoot: string;
-  fallbackBridge?: PythonFallbackBridge;
   engineClient?: EngineClient;
 }
 
 export interface McpServerPlan {
   name: "navigation-agent-mcp";
+  version: "0.1.0";
   workspaceRoot: string;
   tools: RegisteredCodeTool[];
   listTools(): RegisteredCodeTool[];
@@ -30,14 +29,26 @@ export interface McpServerPlan {
     payload: Record<string, unknown>,
   ): Promise<unknown>;
   serveStdio(): Promise<void>;
+  serveStdioLegacy(): Promise<void>;
   close(): Promise<void>;
+}
+
+function toSdkToolResult(result: ResponseEnvelope<unknown>) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(result, null, 2),
+      },
+    ],
+    structuredContent: result as Record<string, unknown>,
+    isError: result.status === "error",
+  };
 }
 
 export function createMcpServer(
   options: CreateMcpServerOptions,
 ): McpServerPlan {
-  const fallbackBridge =
-    options.fallbackBridge ?? createPythonFallbackBridge({ workspaceRoot: options.workspaceRoot });
   const engineClient = options.engineClient ?? new RustEngineClient();
   const inspectTreeService = createInspectTreeService({
     workspaceRoot: options.workspaceRoot,
@@ -65,7 +76,6 @@ export function createMcpServer(
   });
 
   const tools = registerCodeTools({
-    fallbackBridge,
     inspectTreeHandler: (payload) => inspectTreeService.validateAndExecute(payload),
     findSymbolHandler: (payload) => findSymbolService.validateAndExecute(payload),
     listEndpointsHandler: (payload) => listEndpointsService.validateAndExecute(payload),
@@ -73,9 +83,26 @@ export function createMcpServer(
     traceCallersHandler: (payload) => traceCallersService.validateAndExecute(payload),
     traceSymbolHandler: (payload) => traceSymbolService.validateAndExecute(payload),
   });
+  const sdkServer = new SdkMcpServer({
+    name: "navigation-agent-mcp",
+    version: "0.1.0",
+  });
+
+  for (const tool of tools) {
+    sdkServer.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.sdkInputSchema,
+      },
+      async (payload) => toSdkToolResult(await tool.execute(payload as Record<string, unknown>)),
+    );
+  }
 
   return {
     name: "navigation-agent-mcp",
+    version: "0.1.0",
     workspaceRoot: options.workspaceRoot,
     tools,
     listTools() {
@@ -89,6 +116,9 @@ export function createMcpServer(
       return tool.execute(payload);
     },
     async serveStdio() {
+      await sdkServer.connect(new StdioServerTransport());
+    },
+    async serveStdioLegacy() {
       process.stdin.setEncoding("utf8");
       let buffer = "";
 
@@ -127,7 +157,7 @@ export function createMcpServer(
           const id = request.id ?? null;
           if (request.method === "list_tools") {
             process.stdout.write(
-              `${JSON.stringify({ id, ok: true, result: tools.map(({ execute, ...tool }) => tool) })}\n`,
+              `${JSON.stringify({ id, ok: true, result: tools.map(({ execute, sdkInputSchema, ...tool }) => tool) })}\n`,
             );
             continue;
           }
@@ -171,6 +201,7 @@ export function createMcpServer(
       }
     },
     async close() {
+      await sdkServer.close();
       await engineClient.close();
     },
   };

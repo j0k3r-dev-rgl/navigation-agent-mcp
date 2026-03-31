@@ -27,7 +27,7 @@ test("stdio runtime lists tools and returns migrated inspect_tree responses", as
       "--experimental-strip-types",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
-      "stdio",
+      "stdio-legacy",
       "--workspace-root",
       tempDir,
     ],
