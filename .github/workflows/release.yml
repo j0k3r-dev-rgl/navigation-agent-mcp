@@ -57,11 +57,11 @@ jobs:
 
       - name: Build (cross)
         if: matrix.cross == true
-        run: cross build --release --target ${{ matrix.target }} --manifest-path crates/navigation-engine/Cargo.toml
+        run: cross build --release --target ${{ matrix.target }} --manifest-path crates/navigation-engine/Cargo.toml --target-dir ./target
 
       - name: Build (native)
         if: matrix.cross != true
-        run: cargo build --release --target ${{ matrix.target }} --manifest-path crates/navigation-engine/Cargo.toml
+        run: cargo build --release --target ${{ matrix.target }} --manifest-path crates/navigation-engine/Cargo.toml --target-dir ./target
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
