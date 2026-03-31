@@ -8,6 +8,7 @@ if (!filePath) {
 }
 
 const content = readFileSync(filePath, 'utf8');
-writeFileSync(filePath, '#!/usr/bin/env node\n' + content);
+const stripped = content.startsWith('#!') ? content.slice(content.indexOf('\n') + 1) : content;
+writeFileSync(filePath, '#!/usr/bin/env node\n' + stripped);
 chmodSync(filePath, 0o755);
 console.log(`Added shebang and set executable: ${filePath}`);
