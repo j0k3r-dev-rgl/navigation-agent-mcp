@@ -122,11 +122,11 @@ jobs:
       # Platform packages must be published BEFORE the main package
       - name: Publish platform packages
         run: |
-          npm publish packages/mcp-server-linux-x64  --access public
-          npm publish packages/mcp-server-linux-arm64 --access public
-          npm publish packages/mcp-server-darwin-x64  --access public
-          npm publish packages/mcp-server-darwin-arm64 --access public
-          npm publish packages/mcp-server-win32-x64   --access public
+          npm publish ./packages/mcp-server-linux-x64  --access public
+          npm publish ./packages/mcp-server-linux-arm64 --access public
+          npm publish ./packages/mcp-server-darwin-x64  --access public
+          npm publish ./packages/mcp-server-darwin-arm64 --access public
+          npm publish ./packages/mcp-server-win32-x64   --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
