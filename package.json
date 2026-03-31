@@ -1,0 +1,14 @@
+{
+  "name": "navigation-agent-mcp-monorepo",
+  "private": true,
+  "packageManager": "npm@10",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "mcp-server:dev": "npm --workspace @navigation-agent/mcp-server run dev",
+    "mcp-server:test": "npm --workspace @navigation-agent/mcp-server run test",
+    "mcp-server:check": "npm --workspace @navigation-agent/mcp-server run check",
+    "contract-tests": "npm --workspace @navigation-agent/contract-tests run test"
+  }
+}

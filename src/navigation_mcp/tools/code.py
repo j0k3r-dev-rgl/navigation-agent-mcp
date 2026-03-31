@@ -125,7 +125,7 @@ def register_code_tools(
         language: Annotated[
             PublicLanguage | None,
             Field(
-                description="Optional language filter: typescript, javascript, or java."
+                description="Optional language filter: typescript, javascript, java, or python."
             ),
         ] = None,
         framework: Annotated[
@@ -183,7 +183,7 @@ def register_code_tools(
         language: Annotated[
             PublicLanguage | None,
             Field(
-                description="Optional language filter: typescript, javascript, or java."
+                description="Optional language filter: typescript, javascript, java, or python."
             ),
         ] = None,
         framework: Annotated[

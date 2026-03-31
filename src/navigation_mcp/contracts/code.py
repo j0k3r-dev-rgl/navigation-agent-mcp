@@ -10,6 +10,7 @@ class PublicLanguage(str, Enum):
     TYPESCRIPT = "typescript"
     JAVASCRIPT = "javascript"
     JAVA = "java"
+    PYTHON = "python"
 
 
 class PublicFramework(str, Enum):

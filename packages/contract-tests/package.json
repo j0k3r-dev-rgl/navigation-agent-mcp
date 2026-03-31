@@ -1,0 +1,8 @@
+{
+  "name": "@navigation-agent/contract-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test ./test/**/*.spec.ts"
+  }
+}

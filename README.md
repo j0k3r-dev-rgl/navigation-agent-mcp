@@ -19,21 +19,27 @@ V1 scope:
 
 ## Tech Stack
 
-- Python
-- `uv` project layout
-- Official MCP Python SDK (`FastMCP`, v1.x style)
-- Pydantic models for normalized contracts
+- TypeScript runtime layer (npm-first)
+- Rust engine boundary for migrated capabilities
+- Python runtime kept as the compatibility path for non-migrated tools
+- `uv` project layout for the legacy/oracle path
+- Pydantic models for the existing public contract source of truth
 
 ## Project Layout
 
 ```text
+packages/
+├── mcp-server/                # npm-first TypeScript runtime shell
+└── contract-tests/            # cross-runtime parity guards
+crates/
+└── navigation-engine/         # Rust capability engine
 src/navigation_mcp/
-├── adapters/internal_tools/   # wrappers around existing internal analyzers
-├── contracts/                # public request/response models
-├── services/                 # application orchestration and normalization
-├── tools/                    # public MCP tool registration
-├── app.py                    # FastMCP assembly
-└── server.py                 # CLI entrypoint
+├── adapters/internal_tools/   # legacy/internal wrappers kept as the oracle path
+├── contracts/                 # public request/response models
+├── services/                  # Python orchestration/oracle behavior
+├── tools/                     # Python MCP tool registration
+├── app.py                     # Python FastMCP assembly
+└── server.py                  # Python CLI entrypoint
 ```
 
 ## Documentation
@@ -42,8 +48,52 @@ src/navigation_mcp/
 - `docs/v1-summary.md` — shipped V1 surface, limitations, and tradeoffs
 - `docs/release-checklist.md` — future release checklist
 - `docs/testing.md` — test layout and commands
+- `docs/migration/sprint-1.md` — current TS/Rust checkpoint, runtime boundary, and remaining follow-up
 
 ## Run
+
+## Preferred runtime: npm-first TypeScript shell
+
+Describe the public tool surface:
+
+```bash
+node --experimental-strip-types packages/mcp-server/src/bin/navigation-mcp.ts --describe-tools
+```
+
+Start the TypeScript runtime over stdio:
+
+```bash
+node --experimental-strip-types packages/mcp-server/src/bin/navigation-mcp.ts --transport stdio --workspace-root /path/to/workspace
+```
+
+Or through the npm workspace shortcut:
+
+```bash
+npm run mcp-server:dev -- --workspace-root /path/to/workspace
+```
+
+### Current migration boundary
+
+- fully migrated through TS -> Rust: `code.inspect_tree`, `code.find_symbol`
+- still on the Python compatibility path: `code.search_text`, `code.trace_symbol`, `code.trace_callers`, `code.list_endpoints`
+
+### Rust engine command
+
+By default the TypeScript runtime starts the Rust engine with:
+
+```bash
+cargo run --quiet --manifest-path crates/navigation-engine/Cargo.toml
+```
+
+Override it with `NAVIGATION_MCP_RUST_ENGINE_CMD` as a JSON string array when needed.
+
+Example:
+
+```bash
+export NAVIGATION_MCP_RUST_ENGINE_CMD='["cargo","run","--quiet","--manifest-path","crates/navigation-engine/Cargo.toml"]'
+```
+
+## Legacy / oracle runtime: Python
 
 ### Stdio
 
@@ -60,6 +110,8 @@ uv run navigation-mcp --transport streamable-http --host 127.0.0.1 --port 8000 -
 ### Optional environment variables
 
 - `NAVIGATION_MCP_WORKSPACE_ROOT`: workspace root to analyze. Defaults to the current working directory.
+- `NAVIGATION_MCP_RUST_ENGINE_CMD`: JSON string array that overrides the Rust engine command for the TS runtime.
+- `NAVIGATION_MCP_PYTHON`: optional Python executable override for the TS compatibility bridge.
 - `NAVIGATION_MCP_FIND_SYMBOL_SCRIPT`: override the internal adapter script path.
 - `NAVIGATION_MCP_LIST_ENDPOINTS_SCRIPT`: override the internal list_endpoints adapter script path.
 - `NAVIGATION_MCP_TRACE_CALLERS_SCRIPT`: override the internal trace_callers adapter script path.
@@ -73,8 +125,10 @@ If you want to try this MCP on another PC with the same OpenCode setup, the simp
 
 You need these programs installed on the machine:
 
-- `python` 3.12+
-- `uv`
+- `node` 24+
+- `npm`
+- `python` 3.12+ (for the legacy/oracle path and compatibility bridge)
+- `uv` (for the legacy/oracle path)
 - `ripgrep`
 - `opencode` (if you want to use it from OpenCode)
 
@@ -87,6 +141,20 @@ sudo pacman -S python uv ripgrep opencode
 If `opencode` is not available in your environment yet, install it using the official OpenCode method described in their docs.
 
 ### Install this MCP locally
+
+For the current Sprint 2 checkpoint, the npm-first path is:
+
+```bash
+npm install
+```
+
+Then run:
+
+```bash
+npm run mcp-server:dev -- --workspace-root /path/to/workspace
+```
+
+The legacy Python install path is still available while the migration is in progress:
 
 From the root of this repository:
 
@@ -108,6 +176,12 @@ Check that the command is available:
 
 ```bash
 navigation-mcp --help
+```
+
+For the npm-first runtime, verify the TypeScript shell exposes the stable tool surface:
+
+```bash
+node --experimental-strip-types packages/mcp-server/src/bin/navigation-mcp.ts --describe-tools
 ```
 
 You can also start it manually over stdio:
@@ -355,7 +429,8 @@ Errors are always structured with:
 
 ### Coverage notes
 
-- `find_symbol`, `trace_symbol`, and `trace_callers` currently cover Java and TypeScript-family source files supported by the internal analyzers
+- `code.find_symbol` is migrated through the TS -> Rust path and currently returns real definitions for Java, TypeScript, and JavaScript/JSX/TSX files
+- `trace_symbol` and `trace_callers` remain on the compatibility path while their migrations are pending
 - `search_text` is powered by ripgrep behind the normalized public contract
 - Internal analyzer paths, commands, raw payloads, and local implementation details are intentionally NOT exposed in the public contract
 

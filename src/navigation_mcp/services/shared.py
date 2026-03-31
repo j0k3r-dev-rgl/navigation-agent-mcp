@@ -103,6 +103,8 @@ def resolve_backend_language(
     effective = resolve_effective_language(language, framework)
     if effective == PublicLanguage.JAVA:
         return "java"
+    if effective == PublicLanguage.PYTHON:
+        return "python"
     if effective in {PublicLanguage.TYPESCRIPT, PublicLanguage.JAVASCRIPT}:
         return "typescript"
     return "auto"
@@ -116,6 +118,8 @@ def infer_language_from_path(path_value: str) -> PublicLanguage | None:
         return PublicLanguage.JAVASCRIPT
     if suffix == ".java":
         return PublicLanguage.JAVA
+    if suffix == ".py":
+        return PublicLanguage.PYTHON
     return None
 
 
