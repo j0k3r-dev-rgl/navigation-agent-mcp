@@ -41,7 +41,7 @@ function toSdkToolResult(result: ResponseEnvelope<unknown>) {
         text: JSON.stringify(result, null, 2),
       },
     ],
-    structuredContent: result as Record<string, unknown>,
+    structuredContent: result as unknown as Record<string, unknown>,
     isError: result.status === "error",
   };
 }

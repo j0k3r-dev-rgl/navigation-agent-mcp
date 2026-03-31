@@ -186,7 +186,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.inspectTreeHandler(payload as InspectTreeInput);
+          return options.inspectTreeHandler(payload as unknown as InspectTreeInput);
         },
       };
     }
@@ -201,7 +201,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.findSymbolHandler(payload as FindSymbolInput);
+          return options.findSymbolHandler(payload as unknown as FindSymbolInput);
         },
       };
     }
@@ -216,7 +216,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.listEndpointsHandler(payload as ListEndpointsInput);
+          return options.listEndpointsHandler(payload as unknown as ListEndpointsInput);
         },
       };
     }
@@ -231,7 +231,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.searchTextHandler(payload as SearchTextInput);
+          return options.searchTextHandler(payload as unknown as SearchTextInput);
         },
       };
     }
@@ -246,7 +246,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.traceSymbolHandler(payload as TraceSymbolInput);
+          return options.traceSymbolHandler(payload as unknown as TraceSymbolInput);
         },
       };
     }
@@ -261,7 +261,7 @@ export function registerCodeTools(
             );
           }
 
-          return options.traceCallersHandler(payload as TraceCallersInput);
+          return options.traceCallersHandler(payload as unknown as TraceCallersInput);
         },
       };
     }

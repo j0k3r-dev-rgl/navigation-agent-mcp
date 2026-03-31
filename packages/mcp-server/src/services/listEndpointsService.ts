@@ -93,7 +93,7 @@ function buildSuccessResponse(
 			counts: mapCounts(result.counts),
 			items: result.items.map((item) => ({
 				name: item.name,
-				kind: item.kind,
+				kind: item.kind as EndpointDefinition["kind"],
 				path: item.path ?? null,
 				file: item.file,
 				line: item.line,
