@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "MCP server for AI-assisted code navigation — find symbols, trace callers, list endpoints and more.",
   "type": "module",
   "bin": {
@@ -22,11 +22,11 @@
     "check": "tsc --noEmit"
   },
   "optionalDependencies": {
-    "@navigation-agent/mcp-server-linux-x64": "0.1.2",
-    "@navigation-agent/mcp-server-linux-arm64": "0.1.2",
-    "@navigation-agent/mcp-server-darwin-x64": "0.1.2",
-    "@navigation-agent/mcp-server-darwin-arm64": "0.1.2",
-    "@navigation-agent/mcp-server-win32-x64": "0.1.2"
+    "@navigation-agent/mcp-server-linux-x64": "0.1.3",
+    "@navigation-agent/mcp-server-linux-arm64": "0.1.3",
+    "@navigation-agent/mcp-server-darwin-x64": "0.1.3",
+    "@navigation-agent/mcp-server-darwin-arm64": "0.1.3",
+    "@navigation-agent/mcp-server-win32-x64": "0.1.3"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

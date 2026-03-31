@@ -159,10 +159,11 @@ fn walk_supported_files(
     include_hidden: bool,
     files: &mut Vec<PathBuf>,
 ) -> Result<(), EngineError> {
-    let mut entries = fs::read_dir(current_path)
-        .map_err(|error| EngineError::backend_execution_failed(error.to_string()))?
-        .filter_map(Result::ok)
-        .collect::<Vec<_>>();
+    let read_dir = match fs::read_dir(current_path) {
+        Ok(rd) => rd,
+        Err(_) => return Ok(()),
+    };
+    let mut entries = read_dir.filter_map(Result::ok).collect::<Vec<_>>();
 
     entries.sort_by(|left, right| {
         let left_is_dir = left
@@ -189,9 +190,10 @@ fn walk_supported_files(
             continue;
         }
 
-        let file_type = entry
-            .file_type()
-            .map_err(|error| EngineError::backend_execution_failed(error.to_string()))?;
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
         let entry_path = entry.path();
         if file_type.is_dir() {
             if !file_type.is_symlink() {
