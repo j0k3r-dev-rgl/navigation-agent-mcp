@@ -1,0 +1,11 @@
+{
+  "name": "@navigation-agent/mcp-server-linux-arm64",
+  "version": "0.1.0",
+  "description": "Linux arm64 binary for @navigation-agent/mcp-server. Install the main package instead.",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": [
+    "navigation-engine"
+  ],
+  "license": "MIT"
+}

@@ -7,8 +7,13 @@
   ],
   "scripts": {
     "mcp-server:dev": "npm --workspace @navigation-agent/mcp-server run dev",
+    "mcp-server:build": "npm --workspace @navigation-agent/mcp-server run build",
     "mcp-server:test": "npm --workspace @navigation-agent/mcp-server run test",
     "mcp-server:check": "npm --workspace @navigation-agent/mcp-server run check",
     "contract-tests": "npm --workspace @navigation-agent/contract-tests run test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "@navigation-agent/mcp-server-darwin-arm64",
+  "version": "0.1.0",
+  "description": "macOS arm64 binary for @navigation-agent/mcp-server. Install the main package instead.",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": [
+    "navigation-engine"
+  ],
+  "license": "MIT"
+}

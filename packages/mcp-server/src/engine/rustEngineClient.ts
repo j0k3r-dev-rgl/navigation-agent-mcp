@@ -1,8 +1,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { once } from "node:events";
 import { EOL } from "node:os";
 
 import type { EngineRequest, EngineResponse } from "./protocol.ts";
+
+const _require = createRequire(import.meta.url);
 
 export interface EngineClient {
   request<TResult = unknown>(
@@ -151,6 +156,30 @@ function resolveEngineCommand(override?: readonly string[]): readonly string[] {
     throw new Error("NAVIGATION_MCP_RUST_ENGINE_CMD must be a JSON array of strings.");
   }
 
+  // Try to find the pre-compiled binary bundled in the platform-specific optional package.
+  const binaryName = process.platform === "win32" ? "navigation-engine.exe" : "navigation-engine";
+  const platformPackages: Record<string, string> = {
+    "linux-x64": "@navigation-agent/mcp-server-linux-x64",
+    "linux-arm64": "@navigation-agent/mcp-server-linux-arm64",
+    "darwin-x64": "@navigation-agent/mcp-server-darwin-x64",
+    "darwin-arm64": "@navigation-agent/mcp-server-darwin-arm64",
+    "win32-x64": "@navigation-agent/mcp-server-win32-x64",
+  };
+
+  const pkgName = platformPackages[`${process.platform}-${process.arch}`];
+  if (pkgName) {
+    try {
+      const pkgJsonPath = _require.resolve(`${pkgName}/package.json`);
+      const binaryPath = join(dirname(pkgJsonPath), binaryName);
+      if (existsSync(binaryPath)) {
+        return [binaryPath];
+      }
+    } catch {
+      // Optional package not installed — fall through to dev fallback.
+    }
+  }
+
+  // Dev fallback: build and run via cargo.
   return [
     "cargo",
     "run",
