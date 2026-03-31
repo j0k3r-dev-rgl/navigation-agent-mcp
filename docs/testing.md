@@ -19,18 +19,25 @@ That means the highest-value tests focus on:
 ```text
 tests/
 ├── conftest.py
+├── helpers.py
 ├── test_inspect_tree_contract.py
+├── test_path_errors.py
+├── test_public_tool_e2e.py
 ├── test_search_text_service.py
 └── test_tool_registration.py
 
 packages/mcp-server/test/
 ├── contract/
 │   ├── findSymbolContract.spec.ts
-│   └── inspectTreeContract.spec.ts
+│   ├── inspectTreeContract.spec.ts
+│   └── searchTextContract.spec.ts
 └── unit/
     ├── findSymbolService.spec.ts
     ├── normalizeFindSymbolInput.spec.ts
-    └── toolRegistration.spec.ts
+    ├── searchTextService.spec.ts
+    ├── toolRegistration.spec.ts
+    ├── traceCallersService.spec.ts
+    └── traceSymbolService.spec.ts
 
 packages/contract-tests/test/
 └── contract/
@@ -46,6 +53,9 @@ crates/navigation-engine/tests/
 ├── capabilities_find_symbol.rs
 ├── capabilities_inspect_tree.rs
 ├── capabilities_list_endpoints.rs
+├── capabilities_search_text.rs
+├── capabilities_trace_callers.rs
+├── capabilities_trace_symbol.rs
 ├── protocol.rs
 └── workspace.rs
 ```
@@ -69,6 +79,14 @@ crates/navigation-engine/tests/
 - verifies service-level normalization for truncated search responses
 - verifies count metadata and effective language detection
 
+### `test_path_errors.py`
+
+- verifies stable path error envelopes at the Python contract layer
+
+### `test_public_tool_e2e.py`
+
+- verifies public tool execution and envelope stability through the legacy/oracle runtime where still useful as a reference path
+
 ### `packages/mcp-server/test/unit/findSymbolService.spec.ts`
 
 - verifies migrated request shaping for `react-router`, `javascript`, and `spring`
@@ -79,10 +97,16 @@ crates/navigation-engine/tests/
 - verifies the migrated `code.find_symbol` stdio runtime path without Python
 - verifies Java framework inference and partial-result envelopes at the public runtime boundary
 
+### `packages/mcp-server/test/contract/searchTextContract.spec.ts`
+
+- verifies the migrated `code.search_text` stdio runtime path through the TS -> Rust boundary
+- verifies truncation, language inference, and backend error mapping at the public runtime boundary
+
 ### `packages/mcp-server/test/unit/toolRegistration.spec.ts`
 
 - verifies the npm-first TypeScript runtime exposes the same six `code.*` tools
 - verifies the discoverable schema defaults/required fields remain stable
+- verifies `code.search_text`, `code.trace_symbol`, and `code.trace_callers` dispatch to engine capabilities instead of Python fallback
 
 ### `packages/mcp-server/test/contract/inspectTreeContract.spec.ts`
 
@@ -105,8 +129,9 @@ crates/navigation-engine/tests/
 
 ### `crates/navigation-engine/tests/capabilities_*.rs`
 
-- verifies Rust capability handlers for `inspect_tree`, `find_symbol`, and `list_endpoints`
+- verifies Rust capability handlers for all migrated `code.*` capabilities
 - verifies filters, truncation, and safe empty results at the engine boundary
+- verifies `trace_callers` recursive classification behavior in Rust
 
 ## Run tests
 
@@ -157,4 +182,4 @@ Those areas can be expanded later, but the current migration checkpoint should r
 
 The inspect-tree parity check depends on the Python oracle being importable. In the current repository state, that means the Python `mcp` dependency must be installed. If it is missing, that parity test skips instead of failing with a misleading contract regression.
 
-The migrated `code.find_symbol` and `code.list_endpoints` runtime paths do not depend on Python.
+The primary public runtime path for all six `code.*` tools no longer depends on Python.

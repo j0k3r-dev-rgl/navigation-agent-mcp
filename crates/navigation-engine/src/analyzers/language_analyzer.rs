@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use super::types::{
-    AnalyzerLanguage, EndpointDefinition, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CallerDefinition, EndpointDefinition, FindCallersQuery, FindEndpointsQuery,
+    FindSymbolQuery, SymbolDefinition,
 };
 
 pub trait LanguageAnalyzer {
@@ -24,6 +25,16 @@ pub trait LanguageAnalyzer {
         _source: &str,
         _query: &FindEndpointsQuery,
     ) -> Vec<EndpointDefinition> {
+        Vec::new()
+    }
+
+    fn find_callers(
+        &self,
+        _workspace_root: &Path,
+        _path: &Path,
+        _source: &str,
+        _query: &FindCallersQuery,
+    ) -> Vec<CallerDefinition> {
         Vec::new()
     }
 

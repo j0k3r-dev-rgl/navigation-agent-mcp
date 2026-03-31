@@ -6,4 +6,8 @@ export * from "./engine/rustEngineClient.ts";
 export * from "./runtime/pythonFallback.ts";
 export * from "./services/findSymbolService.ts";
 export * from "./services/inspectTreeService.ts";
+export * from "./services/listEndpointsService.ts";
+export * from "./services/searchTextService.ts";
+export * from "./services/traceCallersService.ts";
+export * from "./services/traceSymbolService.ts";
 export * from "./tools/registerCodeTools.ts";

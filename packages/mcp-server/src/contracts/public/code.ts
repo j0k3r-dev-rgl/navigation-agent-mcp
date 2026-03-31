@@ -120,6 +120,226 @@ export interface ListEndpointsData {
   items: EndpointDefinition[];
 }
 
+export interface SearchTextInput {
+  query: string;
+  path?: string | null;
+  language?: PublicLanguage | null;
+  framework?: PublicFramework | null;
+  include?: string | null;
+  regex: boolean;
+  context: number;
+  limit: number;
+}
+
+export interface SearchTextContextLine {
+  line: number;
+  text: string;
+}
+
+export interface SearchTextSubmatch {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface SearchTextMatch {
+  line: number;
+  text: string;
+  submatches: SearchTextSubmatch[];
+  before: SearchTextContextLine[];
+  after: SearchTextContextLine[];
+}
+
+export interface SearchTextFileMatch {
+  path: string;
+  language: PublicLanguage | null;
+  matchCount: number;
+  matches: SearchTextMatch[];
+}
+
+export interface SearchTextData {
+  fileCount: number;
+  matchCount: number;
+  totalFileCount: number;
+  totalMatchCount: number;
+  items: SearchTextFileMatch[];
+}
+
+export interface TraceSymbolInput {
+  path: string;
+  symbol: string;
+  language?: PublicLanguage | null;
+  framework?: PublicFramework | null;
+}
+
+export interface TraceSymbolEntrypoint {
+  path: string;
+  symbol: string;
+  language: PublicLanguage | null;
+}
+
+export interface TraceSymbolFile {
+  path: string;
+  language: PublicLanguage | null;
+}
+
+export interface TraceSymbolData {
+  entrypoint: TraceSymbolEntrypoint;
+  fileCount: number;
+  items: TraceSymbolFile[];
+}
+
+export interface TraceCallersInput {
+  path: string;
+  symbol: string;
+  language?: PublicLanguage | null;
+  framework?: PublicFramework | null;
+  recursive: boolean;
+  max_depth?: number | null;
+}
+
+export interface TraceCallersTarget {
+  path: string;
+  symbol: string;
+  language: PublicLanguage | null;
+}
+
+export interface TraceCallerRecord {
+  path: string;
+  line: number;
+  column: number | null;
+  caller: string;
+  callerSymbol: string | null;
+  relation: string;
+  language: PublicLanguage | null;
+  snippet: string | null;
+  receiverType: string | null;
+}
+
+export interface TraceCallersRecursiveVia {
+  relation: string | null;
+  line: number | null;
+  column: number | null;
+  snippet: string | null;
+}
+
+export interface TraceCallersRecursiveNode {
+  key: string;
+  path: string;
+  symbol: string;
+  depth: number;
+  via: TraceCallersRecursiveVia | null;
+}
+
+export interface TraceCallersRecursivePathSegment {
+  path: string;
+  symbol: string;
+  depth: number;
+}
+
+export interface TraceCallersRecursiveCycle {
+  fromKey: string;
+  toKey: string;
+  path: string[];
+}
+
+export interface TraceCallersRecursiveTruncatedNode {
+  key: string;
+  path: string;
+  symbol: string;
+  depth: number;
+}
+
+export interface TraceCallersProbableEntryPoint {
+  key: string | null;
+  path: string;
+  symbol: string;
+  depth: number | null;
+  reasons: string[];
+  probable: boolean | null;
+  pathFromTarget: TraceCallersRecursivePathSegment[];
+}
+
+export interface TraceCallersCallsTarget {
+  path: string;
+  symbol: string;
+}
+
+export interface TraceCallersClassificationRecord {
+  path: string;
+  symbol: string;
+  caller: string;
+  depth: number;
+  line: number;
+  column: number | null;
+  relation: string;
+  language: PublicLanguage | null;
+  receiverType: string | null;
+  snippet: string | null;
+  calls: TraceCallersCallsTarget;
+  pathFromTarget: TraceCallersRecursivePathSegment[];
+}
+
+export interface TraceCallersImplementationInterface {
+  name: string | null;
+  path: string | null;
+  symbol: string | null;
+}
+
+export interface TraceCallersImplementationReference {
+  path: string;
+  symbol: string | null;
+}
+
+export interface TraceCallersImplementationInterfaceChain {
+  kind: string;
+  probable: boolean | null;
+  interface: TraceCallersImplementationInterface | null;
+  implementation: TraceCallersImplementationReference | null;
+  implementations: TraceCallersImplementationReference[];
+  callers: TraceCallersClassificationRecord[];
+}
+
+export interface TraceCallersRecursiveSummary {
+  directCallerCount: number;
+  indirectCallerCount: number;
+  probablePublicEntryPointCount: number;
+  implementationInterfaceChainCount: number;
+}
+
+export interface TraceCallersRecursiveClassifications {
+  summary: TraceCallersRecursiveSummary;
+  directCallers: TraceCallersClassificationRecord[];
+  indirectCallers: TraceCallersClassificationRecord[];
+  probablePublicEntryPoints: TraceCallersProbableEntryPoint[];
+  implementationInterfaceChain: TraceCallersImplementationInterfaceChain[];
+}
+
+export interface TraceCallersRecursiveData {
+  enabled: boolean;
+  root: TraceCallersRecursiveNode;
+  maxDepth: number;
+  maxDepthObserved: number;
+  nodeCount: number;
+  edgeCount: number;
+  pathCount: number;
+  nodes: TraceCallersRecursiveNode[];
+  adjacency: Record<string, string[]>;
+  paths: TraceCallersRecursivePathSegment[][];
+  cycles: TraceCallersRecursiveCycle[];
+  truncated: TraceCallersRecursiveTruncatedNode[];
+  probableEntryPoints: TraceCallersProbableEntryPoint[];
+  classifications: TraceCallersRecursiveClassifications;
+}
+
+export interface TraceCallersData {
+  target: TraceCallersTarget;
+  count: number;
+  returnedCount: number;
+  items: TraceCallerRecord[];
+  recursive: TraceCallersRecursiveData | null;
+}
+
 export interface ValidationIssue {
   field: string;
   message: string;
@@ -492,6 +712,123 @@ export function normalizeListEndpointsInput(
   };
 }
 
+export function normalizeSearchTextInput(
+  payload: Record<string, unknown>,
+): { ok: true; value: SearchTextInput } | { ok: false; issues: ValidationIssue[] } {
+  const issues: ValidationIssue[] = [];
+
+  const query = normalizeRequiredTrimmedString(payload.query, "query", issues);
+  const scopedPath = normalizeOptionalString(payload.path, "path", issues);
+  const language = normalizeEnumValue(
+    payload.language,
+    "language",
+    PUBLIC_LANGUAGES,
+    issues,
+  );
+  const framework = normalizeEnumValue(
+    payload.framework,
+    "framework",
+    PUBLIC_FRAMEWORKS,
+    issues,
+  );
+  const include = normalizeOptionalString(payload.include, "include", issues);
+  const regex = normalizeBoolean(payload.regex, "regex", false, issues);
+  const context = normalizeInteger(payload.context, "context", 1, 0, 10, issues);
+  const limit = normalizeInteger(payload.limit, "limit", 50, 1, 200, issues);
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return {
+    ok: true,
+    value: {
+      query,
+      path: scopedPath,
+      language,
+      framework,
+      include,
+      regex,
+      context,
+      limit,
+    },
+  };
+}
+
+export function normalizeTraceSymbolInput(
+  payload: Record<string, unknown>,
+): { ok: true; value: TraceSymbolInput } | { ok: false; issues: ValidationIssue[] } {
+  const issues: ValidationIssue[] = [];
+
+  const scopedPath = normalizeRequiredTrimmedString(payload.path, "path", issues);
+  const symbol = normalizeRequiredTrimmedString(payload.symbol, "symbol", issues);
+  const language = normalizeEnumValue(
+    payload.language,
+    "language",
+    PUBLIC_LANGUAGES,
+    issues,
+  );
+  const framework = normalizeEnumValue(
+    payload.framework,
+    "framework",
+    PUBLIC_FRAMEWORKS,
+    issues,
+  );
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return {
+    ok: true,
+    value: {
+      path: scopedPath,
+      symbol,
+      language,
+      framework,
+    },
+  };
+}
+
+export function normalizeTraceCallersInput(
+  payload: Record<string, unknown>,
+): { ok: true; value: TraceCallersInput } | { ok: false; issues: ValidationIssue[] } {
+  const issues: ValidationIssue[] = [];
+
+  const scopedPath = normalizeRequiredTrimmedString(payload.path, "path", issues);
+  const symbol = normalizeRequiredTrimmedString(payload.symbol, "symbol", issues);
+  const language = normalizeEnumValue(
+    payload.language,
+    "language",
+    PUBLIC_LANGUAGES,
+    issues,
+  );
+  const framework = normalizeEnumValue(
+    payload.framework,
+    "framework",
+    PUBLIC_FRAMEWORKS,
+    issues,
+  );
+  const recursive = normalizeBoolean(payload.recursive, "recursive", false, issues);
+  const maxDepth = normalizeNullableInteger(payload.max_depth, "max_depth", 1, 8, issues);
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return {
+    ok: true,
+    value: {
+      path: scopedPath,
+      symbol,
+      language,
+      framework,
+      recursive,
+      max_depth: maxDepth,
+    },
+  };
+}
+
 function normalizeRequiredTrimmedString(
   value: unknown,
   field: string,
@@ -552,6 +889,31 @@ function normalizeInteger(
       type: "range_error",
     });
     return fallback;
+  }
+  return value;
+}
+
+function normalizeNullableInteger(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+  issues: ValidationIssue[],
+): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    issues.push({ field, message: "Input should be a valid integer.", type: "int_type" });
+    return null;
+  }
+  if (value < min || value > max) {
+    issues.push({
+      field,
+      message: `Input should be greater than or equal to ${min} and less than or equal to ${max}.`,
+      type: "range_error",
+    });
+    return null;
   }
   return value;
 }

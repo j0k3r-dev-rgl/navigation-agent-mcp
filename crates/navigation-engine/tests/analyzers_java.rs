@@ -2,7 +2,7 @@ use std::path::Path;
 
 use navigation_engine::analyzers::java::JavaAnalyzer;
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
-use navigation_engine::analyzers::{FindEndpointsQuery, FindSymbolQuery};
+use navigation_engine::analyzers::{FindCallersQuery, FindEndpointsQuery, FindSymbolQuery};
 
 fn any_symbol_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -385,4 +385,38 @@ fn supports_spring_framework_filter() {
     assert!(analyzer.supports_framework(Some("spring")));
     assert!(!analyzer.supports_framework(Some("react-router")));
     assert!(analyzer.supports_framework(None));
+}
+
+#[test]
+fn finds_java_method_callers_and_marks_controller_entrypoints() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+@RestController
+public class NavigationController {
+    @GetMapping("/dashboard")
+    public String getNavigation() {
+        return loader();
+    }
+}
+"#;
+
+    let items = analyzer.find_callers(
+        Path::new("src/main/java"),
+        Path::new("src/main/java/com/example/NavigationController.java"),
+        source,
+        &FindCallersQuery {
+            target_path: Path::new("src/main/java/com/example/DashboardService.java").to_path_buf(),
+            target_symbol: "loader".to_string(),
+        },
+    );
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].caller, "NavigationController#getNavigation");
+    assert_eq!(items[0].relation, "calls");
+    assert_eq!(
+        items[0].probable_entry_point_reasons,
+        vec!["public controller method"]
+    );
 }

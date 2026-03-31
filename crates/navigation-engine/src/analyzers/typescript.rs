@@ -1,11 +1,13 @@
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use tree_sitter::{Node, Parser};
 
 use super::language_analyzer::LanguageAnalyzer;
 use super::types::{
     infer_public_language, normalize_public_endpoint_kind, normalize_public_symbol_kind,
-    AnalyzerLanguage, EndpointDefinition, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CallerDefinition, CallerTarget, EndpointDefinition, FindCallersQuery,
+    FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
 };
 
 pub struct TypeScriptAnalyzer;
@@ -84,6 +86,61 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
         endpoints
     }
 
+    fn find_callers(
+        &self,
+        workspace_root: &Path,
+        path: &Path,
+        source: &str,
+        query: &FindCallersQuery,
+    ) -> Vec<CallerDefinition> {
+        let Some(language) = parser_language_for_path(path) else {
+            return Vec::new();
+        };
+
+        let mut parser = Parser::new();
+        if parser.set_language(&language.into()).is_err() {
+            return Vec::new();
+        }
+
+        let Some(tree) = parser.parse(source, None) else {
+            return Vec::new();
+        };
+
+        let public_language = infer_public_language(path);
+        let aliases = collect_import_aliases(
+            workspace_root,
+            path,
+            tree.root_node(),
+            source.as_bytes(),
+            query,
+        );
+        let same_file_target = normalize_path(path) == normalize_path(&query.target_path);
+
+        if !same_file_target && aliases.direct.is_empty() && aliases.namespace.is_empty() {
+            return Vec::new();
+        }
+
+        let context = CallerContext {
+            target_symbol: query.target_symbol.as_str(),
+            target_path: query.target_path.as_path(),
+            current_file: path,
+            public_language: public_language.as_deref(),
+            route_path: derive_route_path_from_file(path),
+            aliases,
+            same_file_target,
+        };
+
+        let mut callers = Vec::new();
+        walk_for_callers(
+            tree.root_node(),
+            source.as_bytes(),
+            None,
+            &context,
+            &mut callers,
+        );
+        dedupe_callers(callers)
+    }
+
     fn supports_framework(&self, framework: Option<&str>) -> bool {
         match framework {
             None => true,
@@ -91,6 +148,28 @@ impl LanguageAnalyzer for TypeScriptAnalyzer {
             Some(_) => false,
         }
     }
+}
+
+struct ImportAliases {
+    direct: BTreeSet<String>,
+    namespace: BTreeSet<String>,
+}
+
+struct CallerContext<'a> {
+    target_symbol: &'a str,
+    target_path: &'a Path,
+    current_file: &'a Path,
+    public_language: Option<&'a str>,
+    route_path: Option<String>,
+    aliases: ImportAliases,
+    same_file_target: bool,
+}
+
+#[derive(Clone)]
+struct FunctionContext {
+    caller: String,
+    caller_symbol: Option<String>,
+    probable_entry_point_reasons: Vec<String>,
 }
 
 fn parser_language_for_path(path: &Path) -> Option<tree_sitter_language::LanguageFn> {
@@ -184,24 +263,330 @@ fn node_text(node: Node, source: &[u8]) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn collect_import_aliases(
+    workspace_root: &Path,
+    current_file: &Path,
+    root: Node,
+    source: &[u8],
+    query: &FindCallersQuery,
+) -> ImportAliases {
+    let mut aliases = ImportAliases {
+        direct: BTreeSet::new(),
+        namespace: BTreeSet::new(),
+    };
+
+    for i in 0..root.named_child_count() {
+        let Some(child) = root.named_child(i) else {
+            continue;
+        };
+        if child.kind() != "import_statement" {
+            continue;
+        }
+
+        let Some(source_node) = child.child_by_field_name("source") else {
+            continue;
+        };
+        let Some(import_source) = node_text(source_node, source) else {
+            continue;
+        };
+        let normalized_source = import_source.trim_matches(&['\'', '"'][..]);
+        if !import_matches_target(
+            workspace_root,
+            current_file,
+            normalized_source,
+            &query.target_path,
+        ) {
+            continue;
+        }
+
+        for j in 0..child.named_child_count() {
+            let Some(named) = child.named_child(j) else {
+                continue;
+            };
+            match named.kind() {
+                "import_clause" => collect_from_import_clause(named, source, query, &mut aliases),
+                "identifier" => {
+                    aliases.direct.insert(query.target_symbol.to_string());
+                    aliases
+                        .direct
+                        .insert(node_text(named, source).unwrap_or_default());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    aliases
+}
+
+fn collect_from_import_clause(
+    node: Node,
+    source: &[u8],
+    query: &FindCallersQuery,
+    aliases: &mut ImportAliases,
+) {
+    for i in 0..node.named_child_count() {
+        let Some(child) = node.named_child(i) else {
+            continue;
+        };
+        match child.kind() {
+            "identifier" => {
+                aliases.direct.insert(
+                    child
+                        .utf8_text(source)
+                        .ok()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
+                );
+            }
+            "named_imports" => {
+                for j in 0..child.named_child_count() {
+                    let Some(specifier) = child.named_child(j) else {
+                        continue;
+                    };
+                    if specifier.kind() != "import_specifier" {
+                        continue;
+                    }
+                    let imported = specifier
+                        .child_by_field_name("name")
+                        .and_then(|item| node_text(item, source));
+                    let alias = specifier
+                        .child_by_field_name("alias")
+                        .and_then(|item| node_text(item, source))
+                        .or_else(|| imported.clone());
+                    if imported.as_deref() == Some(query.target_symbol.as_str()) {
+                        if let Some(alias) = alias {
+                            aliases.direct.insert(alias);
+                        }
+                    }
+                }
+            }
+            "namespace_import" => {
+                if let Some(name) = child
+                    .child_by_field_name("name")
+                    .and_then(|item| node_text(item, source))
+                {
+                    aliases.namespace.insert(name);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn import_matches_target(
+    workspace_root: &Path,
+    current_file: &Path,
+    import_source: &str,
+    target_path: &Path,
+) -> bool {
+    let Some(base_dir) = current_file.parent() else {
+        return false;
+    };
+    let import_path = if import_source.starts_with('.') {
+        normalize_path(&base_dir.join(import_source))
+    } else {
+        normalize_path(&workspace_root.join(import_source))
+    };
+    let target = normalize_path(target_path);
+    if import_path == target {
+        return true;
+    }
+
+    let mut candidates = vec![import_path.clone()];
+    for extension in ["ts", "tsx", "js", "jsx"] {
+        candidates.push(PathBuf::from(format!(
+            "{}.{}",
+            import_path.to_string_lossy(),
+            extension
+        )));
+        candidates.push(import_path.join(format!("index.{}", extension)));
+    }
+
+    candidates
+        .into_iter()
+        .any(|candidate| normalize_path(&candidate) == target)
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
+}
+
+fn walk_for_callers(
+    node: Node,
+    source: &[u8],
+    current_context: Option<FunctionContext>,
+    ctx: &CallerContext,
+    callers: &mut Vec<CallerDefinition>,
+) {
+    let next_context = derive_function_context(node, source, current_context.clone(), ctx)
+        .or(current_context.clone());
+
+    if let Some(function_context) = &next_context {
+        if let Some(caller) = extract_call_reference(node, source, function_context, ctx) {
+            callers.push(caller);
+        }
+    }
+
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            walk_for_callers(child, source, next_context.clone(), ctx, callers);
+        }
+    }
+}
+
+fn derive_function_context(
+    node: Node,
+    source: &[u8],
+    inherited: Option<FunctionContext>,
+    ctx: &CallerContext,
+) -> Option<FunctionContext> {
+    match node.kind() {
+        "function_declaration" | "generator_function_declaration" => {
+            let name = node
+                .child_by_field_name("name")
+                .and_then(|item| node_text(item, source))?;
+            Some(build_function_context(name, node, ctx))
+        }
+        "method_definition" => {
+            let name = node
+                .child_by_field_name("name")
+                .and_then(|item| node_text(item, source))?;
+            Some(build_function_context(name, node, ctx))
+        }
+        "variable_declarator" => {
+            let value = node.child_by_field_name("value")?;
+            if !matches!(value.kind(), "arrow_function" | "function_expression") {
+                return inherited;
+            }
+            let name = node
+                .child_by_field_name("name")
+                .and_then(|item| node_text(item, source))?;
+            Some(build_function_context(name, node, ctx))
+        }
+        _ => inherited,
+    }
+}
+
+fn build_function_context(name: String, node: Node, ctx: &CallerContext) -> FunctionContext {
+    let mut reasons = Vec::new();
+    if ctx.route_path.is_some() && is_exported(node) && matches!(name.as_str(), "loader" | "action")
+    {
+        reasons.push("route module export".to_string());
+    }
+
+    FunctionContext {
+        caller: name.clone(),
+        caller_symbol: Some(name),
+        probable_entry_point_reasons: reasons,
+    }
+}
+
+fn is_exported(node: Node) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "export_statement" {
+            return true;
+        }
+        current = parent;
+    }
+    false
+}
+
+fn extract_call_reference(
+    node: Node,
+    source: &[u8],
+    function_context: &FunctionContext,
+    ctx: &CallerContext,
+) -> Option<CallerDefinition> {
+    if node.kind() != "call_expression" {
+        return None;
+    }
+    if function_context.caller_symbol.as_deref() == Some(ctx.target_symbol) && ctx.same_file_target
+    {
+        return None;
+    }
+
+    let callee = node.child_by_field_name("function")?;
+    let matched = match callee.kind() {
+        "identifier" => {
+            let identifier = node_text(callee, source)?;
+            (ctx.same_file_target && identifier == ctx.target_symbol)
+                || ctx.aliases.direct.contains(&identifier)
+        }
+        "member_expression" => {
+            let object = callee
+                .child_by_field_name("object")
+                .and_then(|item| node_text(item, source));
+            let property = callee
+                .child_by_field_name("property")
+                .and_then(|item| node_text(item, source));
+            property.as_deref() == Some(ctx.target_symbol)
+                && object
+                    .as_deref()
+                    .is_some_and(|value| ctx.aliases.namespace.contains(value))
+        }
+        _ => false,
+    };
+
+    if !matched {
+        return None;
+    }
+
+    Some(CallerDefinition {
+        path: ctx.current_file.to_string_lossy().replace('\\', "/"),
+        line: (node.start_position().row + 1) as u32,
+        column: Some((node.start_position().column + 1) as u32),
+        caller: function_context.caller.clone(),
+        caller_symbol: function_context.caller_symbol.clone(),
+        relation: "calls".to_string(),
+        language: ctx.public_language.map(str::to_string),
+        snippet: node_text(node, source),
+        receiver_type: None,
+        calls: CallerTarget {
+            path: ctx.target_path.to_string_lossy().replace('\\', "/"),
+            symbol: ctx.target_symbol.to_string(),
+        },
+        probable_entry_point_reasons: function_context.probable_entry_point_reasons.clone(),
+    })
+}
+
+fn dedupe_callers(callers: Vec<CallerDefinition>) -> Vec<CallerDefinition> {
+    let mut unique = BTreeMap::new();
+    for caller in callers {
+        unique.insert(
+            (
+                caller.path.clone(),
+                caller.line,
+                caller.column.unwrap_or(0),
+                caller.caller.clone(),
+                caller.caller_symbol.clone().unwrap_or_default(),
+                caller.relation.clone(),
+            ),
+            caller,
+        );
+    }
+    unique.into_values().collect()
+}
+
 /// Derives the React Router 7 route path from a file path.
-/// Convention mapping:
-/// - `app/routes/dashboard.tsx` → `/dashboard`
-/// - `app/routes/users.$id.tsx` → `/users/:id`
-/// - `app/routes/_index.tsx` → `/`
-/// - `app/routes/admin.users.tsx` → `/admin/users`
-/// - `app/routes/admin._index.tsx` → `/admin`
 fn derive_route_path_from_file(path: &Path) -> Option<String> {
     let path_str = path.to_string_lossy();
-
-    // Check if this is a routes directory file
     let routes_idx = path_str.find("/routes/")?;
-    let route_file = &path_str[routes_idx + 8..]; // Skip "/routes/"
-
-    // Remove extension
+    let route_file = &path_str[routes_idx + 8..];
     let route_name = route_file.rsplit_once('.')?.0;
 
-    // Handle _index route
     if route_name == "_index" || route_name.ends_with("/_index") {
         let parent = route_name.rsplit_once('/').map(|(p, _)| p).unwrap_or("");
         if parent.is_empty() {
@@ -210,7 +595,6 @@ fn derive_route_path_from_file(path: &Path) -> Option<String> {
         return Some(format!("/{}", parent.replace('.', "/")));
     }
 
-    // Convert route segments
     let segments: Vec<&str> = route_name
         .split('/')
         .last()
@@ -220,10 +604,9 @@ fn derive_route_path_from_file(path: &Path) -> Option<String> {
 
     let path_segments: Vec<String> = segments
         .iter()
-        .filter(|s| !s.starts_with('_')) // Skip layout markers
+        .filter(|s| !s.starts_with('_'))
         .map(|s| {
             if s.starts_with('$') {
-                // Dynamic segment: $id -> :id
                 format!(":{}", &s[1..])
             } else {
                 s.to_string()
@@ -246,12 +629,10 @@ fn collect_endpoints(
     is_route_file: bool,
     endpoints: &mut Vec<EndpointDefinition>,
 ) {
-    // Only extract endpoints from route files (files in app/routes/)
     if !is_route_file {
         return;
     }
 
-    // Handle export statements - this is where exported loaders/actions live
     if node.kind() == "export_statement" {
         if let Some(endpoint) = extract_endpoint(node, source, public_language, route_path) {
             endpoints.push(endpoint);
@@ -259,7 +640,6 @@ fn collect_endpoints(
         return;
     }
 
-    // Recursively traverse the tree
     for index in 0..node.named_child_count() {
         if let Some(child) = node.named_child(index) {
             collect_endpoints(
@@ -280,13 +660,10 @@ fn extract_endpoint(
     public_language: Option<&str>,
     route_path: Option<&str>,
 ) -> Option<EndpointDefinition> {
-    // Look for exported loader or action functions
     let (name, raw_kind) = match node.kind() {
         "function_declaration" | "generator_function_declaration" => {
             let name_node = node.child_by_field_name("name")?;
             let name = node_text(name_node, source)?;
-
-            // Only interested in loader and action for RR7 routes
             if name != "loader" && name != "action" {
                 return None;
             }
@@ -296,13 +673,9 @@ fn extract_endpoint(
         "variable_declarator" => {
             let name_node = node.child_by_field_name("name")?;
             let name = node_text(name_node, source)?;
-
-            // Only interested in loader and action for RR7 routes
             if name != "loader" && name != "action" {
                 return None;
             }
-
-            // Check if the value is a function
             let value = node.child_by_field_name("value")?;
             if !matches!(value.kind(), "arrow_function" | "function_expression") {
                 return None;
@@ -311,8 +684,6 @@ fn extract_endpoint(
             (name, kind)
         }
         "export_statement" => {
-            // Handle export function loader() {} or export const loader = () => {}
-            // The declaration could be a function_declaration or lexical_declaration
             let declaration = node.child_by_field_name("declaration")?;
             match declaration.kind() {
                 "function_declaration"
@@ -321,7 +692,6 @@ fn extract_endpoint(
                     return extract_endpoint(declaration, source, public_language, route_path);
                 }
                 "lexical_declaration" => {
-                    // export const loader = ... -> lexical_declaration contains variable_declarator
                     for i in 0..declaration.named_child_count() {
                         if let Some(child) = declaration.named_child(i) {
                             if child.kind() == "variable_declarator" {

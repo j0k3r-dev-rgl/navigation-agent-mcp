@@ -21,7 +21,7 @@ V1 scope:
 
 - TypeScript runtime layer (npm-first)
 - Rust engine boundary for migrated capabilities
-- Python runtime kept only as the compatibility path for non-migrated tools
+- Python runtime retained as a legacy/oracle reference path and for Python-side tests
 - `uv` project layout for the legacy/oracle path
 - Pydantic models for the existing public contract source of truth
 
@@ -48,7 +48,7 @@ src/navigation_mcp/
 - `docs/v1-summary.md` — shipped V1 surface, limitations, and tradeoffs
 - `docs/release-checklist.md` — future release checklist
 - `docs/testing.md` — test layout and commands
-- `docs/migration/sprint-1.md` — current TS/Rust checkpoint, migrated tools, and remaining follow-up
+- `docs/migration/sprint-1.md` — current TS/Rust checkpoint, completed `code.*` migration, and remaining follow-up
 
 ## Run
 
@@ -79,9 +79,9 @@ npm run mcp-server:dev -- --workspace-root /path/to/workspace
 | `code.inspect_tree` | TS -> Rust | Stable migrated path |
 | `code.find_symbol` | TS -> Rust | Supports TypeScript/JavaScript, Java, Python, Rust |
 | `code.list_endpoints` | TS -> Rust | Supports React Router 7, Spring, Python decorators/URL patterns, Rust Actix/async-graphql |
-| `code.search_text` | Python compatibility path | Pending migration |
-| `code.trace_symbol` | Python compatibility path | Pending migration |
-| `code.trace_callers` | Python compatibility path | Pending migration |
+| `code.search_text` | TS -> Rust | Search capability runs through Rust; matching still depends on `rg` |
+| `code.trace_symbol` | TS -> Rust | Migrated capability with public contract preserved |
+| `code.trace_callers` | TS -> Rust | Rust AST/tree-sitter path for TypeScript and Java; `implementationInterfaceChain` is currently empty by design |
 
 ### Rust engine command
 
@@ -101,7 +101,7 @@ export NAVIGATION_MCP_RUST_ENGINE_CMD='["cargo","run","--quiet","--manifest-path
 
 ## Legacy / oracle runtime: Python
 
-The Python runtime remains in the repository as a compatibility/oracle path while `code.search_text`, `code.trace_symbol`, and `code.trace_callers` are still being migrated. It is no longer the primary runtime for the migrated tools.
+The Python runtime remains in the repository as a legacy/oracle path for reference workflows and Python-side tests. It is no longer part of the primary execution path for the public `code.*` tools.
 
 ### Stdio
 
@@ -162,7 +162,7 @@ Then run:
 npm run mcp-server:dev -- --workspace-root /path/to/workspace
 ```
 
-The legacy Python install path is still available while the migration is in progress for the non-migrated tools:
+The legacy Python install path is still available for oracle/reference workflows:
 
 From the root of this repository:
 
@@ -262,7 +262,7 @@ If the other machine uses the same OpenCode configuration style, the migration s
 3. Run `npm install`
 4. Start the TS runtime with `npm run mcp-server:dev -- --workspace-root /path/to/workspace`
 5. Copy or recreate the `opencode.json` MCP entry
-6. Install `python` and `uv` too only if you need the legacy/oracle path during the migration
+6. Install `python` and `uv` too only if you need the legacy/oracle path or Python-side tests
 
 ## Public Tool Contract
 
@@ -450,9 +450,10 @@ Errors are always structured with:
 
 ### Coverage notes
 
-- `code.find_symbol` is migrated through the TS -> Rust path and currently returns real definitions for Java, TypeScript, and JavaScript/JSX/TSX files
-- `trace_symbol` and `trace_callers` remain on the compatibility path while their migrations are pending
-- `search_text` is powered by ripgrep behind the normalized public contract
+- All six public `code.*` tools now execute through the TypeScript -> Rust runtime path
+- The TypeScript runtime still uses the current JSON-over-stdio checkpoint protocol to talk to the Rust engine; MCP SDK integration is still follow-up work
+- `code.search_text` is powered by the Rust capability, which still depends on `rg` for matching
+- `code.trace_callers` preserves the public recursive contract, but `implementationInterfaceChain` is currently emitted as empty by design
 - Internal analyzer paths, commands, raw payloads, and local implementation details are intentionally NOT exposed in the public contract
 
 ## Sample usage

@@ -6,7 +6,12 @@ import path from "node:path";
 
 export type NonMigratedCodeToolName = Exclude<
   CodeToolName,
-  "code.inspect_tree" | "code.find_symbol" | "code.list_endpoints"
+  | "code.inspect_tree"
+  | "code.find_symbol"
+  | "code.list_endpoints"
+  | "code.search_text"
+  | "code.trace_symbol"
+  | "code.trace_callers"
 >;
 
 export interface PythonFallbackBridge {

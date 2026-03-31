@@ -6,6 +6,9 @@ import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.
 import { createFindSymbolService } from "../services/findSymbolService.ts";
 import { createInspectTreeService } from "../services/inspectTreeService.ts";
 import { createListEndpointsService } from "../services/listEndpointsService.ts";
+import { createSearchTextService } from "../services/searchTextService.ts";
+import { createTraceCallersService } from "../services/traceCallersService.ts";
+import { createTraceSymbolService } from "../services/traceSymbolService.ts";
 import {
   registerCodeTools,
   type RegisteredCodeTool,
@@ -48,12 +51,27 @@ export function createMcpServer(
     workspaceRoot: options.workspaceRoot,
     engineClient,
   });
+  const searchTextService = createSearchTextService({
+    workspaceRoot: options.workspaceRoot,
+    engineClient,
+  });
+  const traceSymbolService = createTraceSymbolService({
+    workspaceRoot: options.workspaceRoot,
+    engineClient,
+  });
+  const traceCallersService = createTraceCallersService({
+    workspaceRoot: options.workspaceRoot,
+    engineClient,
+  });
 
   const tools = registerCodeTools({
     fallbackBridge,
     inspectTreeHandler: (payload) => inspectTreeService.validateAndExecute(payload),
     findSymbolHandler: (payload) => findSymbolService.validateAndExecute(payload),
     listEndpointsHandler: (payload) => listEndpointsService.validateAndExecute(payload),
+    searchTextHandler: (payload) => searchTextService.validateAndExecute(payload),
+    traceCallersHandler: (payload) => traceCallersService.validateAndExecute(payload),
+    traceSymbolHandler: (payload) => traceSymbolService.validateAndExecute(payload),
   });
 
   return {

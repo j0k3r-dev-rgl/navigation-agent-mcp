@@ -67,4 +67,14 @@ impl EngineError {
             details: serde_json::json!({ "path": path }),
         }
     }
+
+    pub fn symbol_not_found(symbol: &str, path: &str) -> Self {
+        Self {
+            code: "SYMBOL_NOT_FOUND".to_string(),
+            message: format!("Symbol '{}' was not found in '{}'.", symbol, path),
+            retryable: false,
+            suggestion: Some("Verify the symbol name and starting file, then retry.".to_string()),
+            details: serde_json::json!({ "symbol": symbol, "path": path }),
+        }
+    }
 }

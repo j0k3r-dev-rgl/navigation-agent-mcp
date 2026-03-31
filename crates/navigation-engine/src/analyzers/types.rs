@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,12 @@ pub struct FindEndpointsQuery {
     pub limit: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct FindCallersQuery {
+    pub target_path: PathBuf,
+    pub target_symbol: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolDefinition {
@@ -49,6 +55,29 @@ pub struct EndpointDefinition {
     pub line: u32,
     pub language: Option<String>,
     pub framework: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CallerTarget {
+    pub path: String,
+    pub symbol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CallerDefinition {
+    pub path: String,
+    pub line: u32,
+    pub column: Option<u32>,
+    pub caller: String,
+    pub caller_symbol: Option<String>,
+    pub relation: String,
+    pub language: Option<String>,
+    pub snippet: Option<String>,
+    pub receiver_type: Option<String>,
+    pub calls: CallerTarget,
+    pub probable_entry_point_reasons: Vec<String>,
 }
 
 pub fn file_extension(path: &Path) -> Option<String> {

@@ -25,11 +25,11 @@ V1 closed the first public contract for repository navigation with six tools:
 
 This server does **not** edit files, run builds, or execute application-specific workflows.
 
-### 2. The migration is hybrid right now
+### 2. The runtime boundary is fully TS -> Rust for `code.*`
 
-`inspect_tree`, `find_symbol`, and `list_endpoints` now run through the TypeScript runtime + Rust engine path.
+All six public tools now run through the TypeScript runtime + Rust engine path.
 
-`search_text`, `trace_symbol`, and `trace_callers` still use the legacy Python compatibility/oracle path while the migration remains in progress.
+The TypeScript shell still talks to the Rust engine through the current JSON-over-stdio checkpoint protocol. Final MCP SDK integration is still follow-up work, but the public contract is already stable on the migrated path.
 
 ### 3. Search uses ripgrep
 
@@ -52,6 +52,12 @@ Large responses may be returned as `partial` with `RESULT_TRUNCATED` instead of 
 
 `code.inspect_tree` never traverses hard-ignored directories such as `.git`, `node_modules`, `dist`, `build`, `target`, and similar heavy or unsafe folders, even when hidden entries are requested.
 
+### 7. Trace-caller parity is intentionally partial in one area
+
+`code.trace_callers` now runs through the Rust engine, including AST/tree-sitter analysis for TypeScript and Java.
+
+The public response contract is preserved, but `implementationInterfaceChain` is currently returned empty by design rather than claiming deeper interface-implementation reconstruction.
+
 ## Compatibility guidance for future releases
 
 Keep these stable unless a new version is explicitly introduced:
@@ -65,7 +71,7 @@ Keep these stable unless a new version is explicitly introduced:
 
 ## Good V2 directions
 
-- migrate `code.search_text`, `code.trace_symbol`, and `code.trace_callers` off the Python path
 - more explicit backend capability reporting
 - richer recursive trace summaries
 - stronger contract tests around backend error translation
+- final MCP SDK integration for the TypeScript runtime shell

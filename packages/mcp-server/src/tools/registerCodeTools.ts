@@ -4,6 +4,9 @@ import {
   type FindSymbolInput,
   type InspectTreeInput,
   type ListEndpointsInput,
+  type SearchTextInput,
+  type TraceCallersInput,
+  type TraceSymbolInput,
 } from "../contracts/public/code.ts";
 import type { ResponseEnvelope } from "../contracts/public/common.ts";
 import type {
@@ -28,6 +31,15 @@ export interface RegisterCodeToolsOptions {
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
   listEndpointsHandler?: (
+    payload: Record<string, unknown>,
+  ) => Promise<ResponseEnvelope<unknown>>;
+  searchTextHandler?: (
+    payload: Record<string, unknown>,
+  ) => Promise<ResponseEnvelope<unknown>>;
+  traceCallersHandler?: (
+    payload: Record<string, unknown>,
+  ) => Promise<ResponseEnvelope<unknown>>;
+  traceSymbolHandler?: (
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
 }
@@ -126,6 +138,51 @@ export function registerCodeTools(
           }
 
           return options.listEndpointsHandler(payload as ListEndpointsInput);
+        },
+      };
+    }
+
+    if (tool.name === "code.search_text") {
+      return {
+        ...tool,
+        execute: async (payload) => {
+          if (!options.searchTextHandler) {
+            throw new Error(
+              "Search text migrated handler is scaffolded but not yet wired.",
+            );
+          }
+
+          return options.searchTextHandler(payload as SearchTextInput);
+        },
+      };
+    }
+
+    if (tool.name === "code.trace_symbol") {
+      return {
+        ...tool,
+        execute: async (payload) => {
+          if (!options.traceSymbolHandler) {
+            throw new Error(
+              "Trace symbol migrated handler is scaffolded but not yet wired.",
+            );
+          }
+
+          return options.traceSymbolHandler(payload as TraceSymbolInput);
+        },
+      };
+    }
+
+    if (tool.name === "code.trace_callers") {
+      return {
+        ...tool,
+        execute: async (payload) => {
+          if (!options.traceCallersHandler) {
+            throw new Error(
+              "Trace callers migrated handler is scaffolded but not yet wired.",
+            );
+          }
+
+          return options.traceCallersHandler(payload as TraceCallersInput);
         },
       };
     }

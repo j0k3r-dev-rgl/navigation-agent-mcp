@@ -24,6 +24,64 @@ class MockEngineClient implements EngineClient {
       };
     }
 
+    if (request.capability === "workspace.search_text") {
+      return {
+        id: "req-1",
+        ok: true as const,
+        result: {
+          resolvedPath: null,
+          items: [],
+          totalFileCount: 0,
+          totalMatchCount: 0,
+          truncated: false,
+        },
+      };
+    }
+
+    if (request.capability === "workspace.trace_symbol") {
+      return {
+        id: "req-1",
+        ok: true as const,
+        result: {
+          resolvedPath: "src/index.ts",
+          items: [
+            {
+              path: "src/index.ts",
+              language: "typescript",
+            },
+          ],
+          totalMatched: 1,
+          truncated: false,
+        },
+      };
+    }
+
+    if (request.capability === "workspace.trace_callers") {
+      return {
+        id: "req-1",
+        ok: true as const,
+        result: {
+          resolvedPath: "src/index.ts",
+          items: [
+            {
+              path: "src/routes/layout.tsx",
+              line: 12,
+              column: 3,
+              caller: "Layout",
+              callerSymbol: "Layout",
+              relation: "calls",
+              language: "typescript",
+              snippet: "loader()",
+              receiverType: null,
+            },
+          ],
+          totalMatched: 1,
+          truncated: false,
+          recursive: null,
+        },
+      };
+    }
+
     return {
       id: "req-1",
       ok: true as const,
@@ -104,7 +162,7 @@ test("registers the stable six code tools with expected schema defaults", () => 
   assert.ok("PublicEndpointKind" in (toolsByName["code.list_endpoints"].inputSchema.$defs as Record<string, unknown>));
 });
 
-test("non-migrated tools still route through the compatibility bridge", async () => {
+test("migrated and compatibility tools route through the expected backend", async () => {
   const engineClient = new MockEngineClient();
   const fallbackBridge = new MockFallbackBridge();
   const server = createMcpServer({
@@ -115,12 +173,27 @@ test("non-migrated tools still route through the compatibility bridge", async ()
 
   const result = await server.callTool("code.search_text", { query: "inspect_tree" });
   assert.equal((result as { tool: string }).tool, "code.search_text");
-  assert.deepEqual(fallbackBridge.calls, ["code.search_text"]);
+  assert.equal(engineClient.requests[0]?.capability, "workspace.search_text");
+  assert.deepEqual(fallbackBridge.calls, []);
 
   const findSymbolResult = await server.callTool("code.find_symbol", {
     symbol: "loader",
   });
   assert.equal((findSymbolResult as { tool: string }).tool, "code.find_symbol");
-  assert.equal(engineClient.requests[0]?.capability, "workspace.find_symbol");
-  assert.deepEqual(fallbackBridge.calls, ["code.search_text"]);
+  assert.equal(engineClient.requests[1]?.capability, "workspace.find_symbol");
+
+  const traceResult = await server.callTool("code.trace_symbol", {
+    path: "src/index.ts",
+    symbol: "loader",
+  });
+  assert.equal((traceResult as { tool: string }).tool, "code.trace_symbol");
+  assert.equal(engineClient.requests[2]?.capability, "workspace.trace_symbol");
+
+  const callerTraceResult = await server.callTool("code.trace_callers", {
+    path: "src/index.ts",
+    symbol: "loader",
+  });
+  assert.equal((callerTraceResult as { tool: string }).tool, "code.trace_callers");
+  assert.equal(engineClient.requests[3]?.capability, "workspace.trace_callers");
+  assert.deepEqual(fallbackBridge.calls, []);
 });

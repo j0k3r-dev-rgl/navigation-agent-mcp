@@ -73,15 +73,14 @@ client
   -> TypeScript runtime (`packages/mcp-server`)
     -> public request validation
     -> normalized response envelopes
-    -> JSON over stdio
+    -> JSON over stdio (current checkpoint transport)
       -> Rust engine (`crates/navigation-engine`)
         -> workspace.inspect_tree
         -> workspace.find_symbol
         -> workspace.list_endpoints
-
-legacy / compatibility path
-  -> Python runtime (`src/navigation_mcp`)
-    -> search_text, trace_symbol, trace_callers
+        -> workspace.search_text
+        -> workspace.trace_symbol
+        -> workspace.trace_callers
 ```
 
 ## Current migration status
@@ -91,9 +90,9 @@ legacy / compatibility path
 | `code.inspect_tree` | migrated | TS -> Rust |
 | `code.find_symbol` | migrated | TS -> Rust |
 | `code.list_endpoints` | migrated | TS -> Rust |
-| `code.search_text` | pending | Python compatibility path |
-| `code.trace_symbol` | pending | Python compatibility path |
-| `code.trace_callers` | pending | Python compatibility path |
+| `code.search_text` | migrated | TS -> Rust |
+| `code.trace_symbol` | migrated | TS -> Rust |
+| `code.trace_callers` | migrated | TS -> Rust |
 
 `code.list_endpoints` now covers these migrated analyzer families:
 
@@ -101,6 +100,8 @@ legacy / compatibility path
 - Spring REST and GraphQL discovery for Java
 - Python decorator / URL-pattern discovery for FastAPI, Flask, and Django-style patterns
 - Rust REST / GraphQL discovery for Actix-style attrs and async-graphql attrs
+
+`code.trace_callers` now runs in Rust as well. Its current implementation uses AST/tree-sitter analysis for TypeScript and Java while preserving the public response contract; `implementationInterfaceChain` remains empty by design in the current engine behavior.
 
 ## Intended audience
 

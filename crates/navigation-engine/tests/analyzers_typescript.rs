@@ -2,7 +2,7 @@ use std::path::Path;
 
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
 use navigation_engine::analyzers::typescript::TypeScriptAnalyzer;
-use navigation_engine::analyzers::{FindEndpointsQuery, FindSymbolQuery};
+use navigation_engine::analyzers::{FindCallersQuery, FindEndpointsQuery, FindSymbolQuery};
 
 fn any_symbol_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -244,4 +244,31 @@ fn supports_react_router_framework_filter() {
     assert!(analyzer.supports_framework(Some("react-router")));
     assert!(!analyzer.supports_framework(Some("spring")));
     assert!(analyzer.supports_framework(None));
+}
+
+#[test]
+fn finds_typescript_callers_via_imported_aliases() {
+    let analyzer = TypeScriptAnalyzer;
+    let source = r#"
+import { loader as dashboardLoader } from "./dashboard";
+
+export function Layout() {
+  return dashboardLoader();
+}
+"#;
+
+    let items = analyzer.find_callers(
+        Path::new("app/routes"),
+        Path::new("app/routes/layout.tsx"),
+        source,
+        &FindCallersQuery {
+            target_path: Path::new("app/routes/dashboard.tsx").to_path_buf(),
+            target_symbol: "loader".to_string(),
+        },
+    );
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].caller, "Layout");
+    assert_eq!(items[0].caller_symbol.as_deref(), Some("Layout"));
+    assert_eq!(items[0].relation, "calls");
 }
