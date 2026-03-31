@@ -89,6 +89,37 @@ export interface FindSymbolData {
   items: PublicSymbolDefinition[];
 }
 
+export interface ListEndpointsInput {
+  path?: string | null;
+  language?: PublicLanguage | null;
+  framework?: PublicFramework | null;
+  kind: PublicEndpointKind;
+  limit: number;
+}
+
+export interface EndpointDefinition {
+  name: string;
+  kind: PublicEndpointKind;
+  path: string | null;
+  file: string;
+  line: number;
+  language: PublicLanguage | null;
+  framework: PublicFramework | null;
+}
+
+export interface ListEndpointsCounts {
+  byKind: Record<string, number>;
+  byLanguage: Record<string, number>;
+  byFramework: Record<string, number>;
+}
+
+export interface ListEndpointsData {
+  totalCount: number;
+  returnedCount: number;
+  counts: ListEndpointsCounts;
+  items: EndpointDefinition[];
+}
+
 export interface ValidationIssue {
   field: string;
   message: string;
@@ -418,6 +449,44 @@ export function normalizeFindSymbolInput(
       kind,
       match,
       path: scopedPath,
+      limit,
+    },
+  };
+}
+
+export function normalizeListEndpointsInput(
+  payload: Record<string, unknown>,
+): { ok: true; value: ListEndpointsInput } | { ok: false; issues: ValidationIssue[] } {
+  const issues: ValidationIssue[] = [];
+
+  const scopedPath = normalizeOptionalString(payload.path, "path", issues);
+  const language = normalizeEnumValue(
+    payload.language,
+    "language",
+    PUBLIC_LANGUAGES,
+    issues,
+  );
+  const framework = normalizeEnumValue(
+    payload.framework,
+    "framework",
+    PUBLIC_FRAMEWORKS,
+    issues,
+  );
+  const kind =
+    normalizeEnumValue(payload.kind, "kind", PUBLIC_ENDPOINT_KINDS, issues) ?? "any";
+  const limit = normalizeInteger(payload.limit, "limit", 50, 1, 200, issues);
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return {
+    ok: true,
+    value: {
+      path: scopedPath,
+      language,
+      framework,
+      kind,
       limit,
     },
   };

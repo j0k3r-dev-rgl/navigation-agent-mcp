@@ -69,14 +69,38 @@ Every public tool returns:
 ## Architecture at a glance
 
 ```text
-src/navigation_mcp/
-├── adapters/internal_tools/   # Internal analyzer wrappers
-├── contracts/                # Public Pydantic contracts
-├── services/                 # Normalization and orchestration
-├── tools/                    # MCP tool registration
-├── app.py                    # FastMCP assembly
-└── server.py                 # CLI entrypoint
+client
+  -> TypeScript runtime (`packages/mcp-server`)
+    -> public request validation
+    -> normalized response envelopes
+    -> JSON over stdio
+      -> Rust engine (`crates/navigation-engine`)
+        -> workspace.inspect_tree
+        -> workspace.find_symbol
+        -> workspace.list_endpoints
+
+legacy / compatibility path
+  -> Python runtime (`src/navigation_mcp`)
+    -> search_text, trace_symbol, trace_callers
 ```
+
+## Current migration status
+
+| Tool | Status | Runtime |
+| --- | --- | --- |
+| `code.inspect_tree` | migrated | TS -> Rust |
+| `code.find_symbol` | migrated | TS -> Rust |
+| `code.list_endpoints` | migrated | TS -> Rust |
+| `code.search_text` | pending | Python compatibility path |
+| `code.trace_symbol` | pending | Python compatibility path |
+| `code.trace_callers` | pending | Python compatibility path |
+
+`code.list_endpoints` now covers these migrated analyzer families:
+
+- React Router 7 route discovery for TypeScript/JavaScript
+- Spring REST and GraphQL discovery for Java
+- Python decorator / URL-pattern discovery for FastAPI, Flask, and Django-style patterns
+- Rust REST / GraphQL discovery for Actix-style attrs and async-graphql attrs
 
 ## Intended audience
 

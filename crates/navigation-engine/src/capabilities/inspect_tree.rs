@@ -1,7 +1,7 @@
 use crate::error::EngineError;
 use crate::protocol::{
-    EngineRequest, EngineResponse, InspectTreeItem, InspectTreeItemStats, InspectTreeRequestPayload,
-    InspectTreeResult,
+    EngineRequest, EngineResponse, InspectTreeItem, InspectTreeItemStats,
+    InspectTreeRequestPayload, InspectTreeResult,
 };
 use crate::workspace::{
     canonicalize_workspace_root, contains_hard_ignored_segment, ignored_directories, public_path,
@@ -16,21 +16,24 @@ pub const CAPABILITY: &str = "workspace.inspect_tree";
 pub const MAX_TREE_ITEMS: usize = 2000;
 
 pub fn handle(request: EngineRequest) -> EngineResponse {
-    let parsed_payload = serde_json::from_value::<InspectTreeRequestPayload>(request.payload.clone());
+    let parsed_payload =
+        serde_json::from_value::<InspectTreeRequestPayload>(request.payload.clone());
 
     match parsed_payload {
         Ok(payload) => match inspect_tree(&request.workspace_root, payload) {
             Ok(result) => EngineResponse::success(request.id, &result),
             Err(error) => EngineResponse::error(request.id, error),
         },
-        Err(error) => EngineResponse::error(
-            request.id,
-            EngineError::invalid_request(error.to_string()),
-        ),
+        Err(error) => {
+            EngineResponse::error(request.id, EngineError::invalid_request(error.to_string()))
+        }
     }
 }
 
-fn inspect_tree(workspace_root: &str, payload: InspectTreeRequestPayload) -> Result<InspectTreeResult, EngineError> {
+pub fn inspect_tree(
+    workspace_root: &str,
+    payload: InspectTreeRequestPayload,
+) -> Result<InspectTreeResult, EngineError> {
     let workspace_root = canonicalize_workspace_root(workspace_root)?;
     let scope = resolve_scope(&workspace_root, payload.path.as_deref())?;
     let root_path = scope.absolute_path;
@@ -49,16 +52,27 @@ fn inspect_tree(workspace_root: &str, payload: InspectTreeRequestPayload) -> Res
     let normalized_extensions = normalize_extensions(payload.extensions);
 
     if root_path.is_file() {
-        let extension = root_path.extension().map(|value| format!(".{}", value.to_string_lossy().to_lowercase()));
+        let extension = root_path
+            .extension()
+            .map(|value| format!(".{}", value.to_string_lossy().to_lowercase()));
         let mut items = Vec::new();
         if matches_filters(
             false,
-            root_path.file_name().map(|value| value.to_string_lossy().to_string()).unwrap_or_default().as_str(),
+            root_path
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_default()
+                .as_str(),
             extension.as_deref(),
             &normalized_extensions,
             payload.file_pattern.as_deref(),
         ) {
-            items.push(build_item(&workspace_root, &root_path, 1, payload.include_stats)?);
+            items.push(build_item(
+                &workspace_root,
+                &root_path,
+                1,
+                payload.include_stats,
+            )?);
         }
 
         return Ok(InspectTreeResult {
@@ -119,10 +133,22 @@ fn walk(
         .collect::<Vec<_>>();
 
     entries.sort_by(|left, right| {
-        let left_is_dir = left.file_type().map(|value| value.is_dir()).unwrap_or(false);
-        let right_is_dir = right.file_type().map(|value| value.is_dir()).unwrap_or(false);
-        (!left_is_dir, left.file_name().to_string_lossy().to_lowercase())
-            .cmp(&(!right_is_dir, right.file_name().to_string_lossy().to_lowercase()))
+        let left_is_dir = left
+            .file_type()
+            .map(|value| value.is_dir())
+            .unwrap_or(false);
+        let right_is_dir = right
+            .file_type()
+            .map(|value| value.is_dir())
+            .unwrap_or(false);
+        (
+            !left_is_dir,
+            left.file_name().to_string_lossy().to_lowercase(),
+        )
+            .cmp(&(
+                !right_is_dir,
+                right.file_name().to_string_lossy().to_lowercase(),
+            ))
     });
 
     for entry in entries {
@@ -145,7 +171,9 @@ fn walk(
             .unwrap_or(&entry_path)
             .components()
             .count() as u32;
-        let extension = entry_path.extension().map(|value| format!(".{}", value.to_string_lossy().to_lowercase()));
+        let extension = entry_path
+            .extension()
+            .map(|value| format!(".{}", value.to_string_lossy().to_lowercase()));
 
         if matches_filters(
             is_directory,
@@ -154,10 +182,15 @@ fn walk(
             normalized_extensions,
             file_pattern,
         ) {
-            items.push(build_item(workspace_root, &entry_path, item_depth, include_stats)?);
+            items.push(build_item(
+                workspace_root,
+                &entry_path,
+                item_depth,
+                include_stats,
+            )?);
             if items.len() >= MAX_TREE_ITEMS {
-              *truncated = true;
-              return Ok(());
+                *truncated = true;
+                return Ok(());
             }
         }
 
@@ -242,7 +275,9 @@ fn matches_filters(
     if is_directory {
         return true;
     }
-    if !normalized_extensions.is_empty() && !extension.is_some_and(|value| normalized_extensions.contains(value)) {
+    if !normalized_extensions.is_empty()
+        && !extension.is_some_and(|value| normalized_extensions.contains(value))
+    {
         return false;
     }
     if let Some(pattern) = file_pattern {
@@ -258,42 +293,8 @@ fn glob_match(pattern: &str, text: &str) -> bool {
 }
 
 fn normalize_extensions(extensions: Vec<String>) -> BTreeSet<String> {
-    extensions.into_iter().map(|value| value.to_lowercase()).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn hidden_files_respect_hard_ignores() {
-        let workspace = tempdir().unwrap();
-        std::fs::create_dir_all(workspace.path().join("src")).unwrap();
-        std::fs::create_dir_all(workspace.path().join(".hidden")).unwrap();
-        std::fs::create_dir_all(workspace.path().join(".git")).unwrap();
-        std::fs::create_dir_all(workspace.path().join("node_modules")).unwrap();
-        std::fs::write(workspace.path().join("src/main.py"), "ok\n").unwrap();
-        std::fs::write(workspace.path().join(".hidden/note.txt"), "secret\n").unwrap();
-        std::fs::write(workspace.path().join(".git/config"), "[core]\n").unwrap();
-
-        let result = inspect_tree(
-            workspace.path().to_string_lossy().as_ref(),
-            InspectTreeRequestPayload {
-                path: None,
-                max_depth: 2,
-                extensions: vec![],
-                file_pattern: None,
-                include_stats: false,
-                include_hidden: true,
-            },
-        )
-        .unwrap();
-
-        let paths = result.items.iter().map(|item| item.path.as_str()).collect::<Vec<_>>();
-        assert!(paths.contains(&".hidden"));
-        assert!(paths.contains(&".hidden/note.txt"));
-        assert!(!paths.iter().any(|path| *path == ".git" || path.starts_with(".git/")));
-        assert!(!paths.iter().any(|path| *path == "node_modules" || path.starts_with("node_modules/")));
-    }
+    extensions
+        .into_iter()
+        .map(|value| value.to_lowercase())
+        .collect()
 }

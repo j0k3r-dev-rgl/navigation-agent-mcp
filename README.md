@@ -21,7 +21,7 @@ V1 scope:
 
 - TypeScript runtime layer (npm-first)
 - Rust engine boundary for migrated capabilities
-- Python runtime kept as the compatibility path for non-migrated tools
+- Python runtime kept only as the compatibility path for non-migrated tools
 - `uv` project layout for the legacy/oracle path
 - Pydantic models for the existing public contract source of truth
 
@@ -48,7 +48,7 @@ src/navigation_mcp/
 - `docs/v1-summary.md` — shipped V1 surface, limitations, and tradeoffs
 - `docs/release-checklist.md` — future release checklist
 - `docs/testing.md` — test layout and commands
-- `docs/migration/sprint-1.md` — current TS/Rust checkpoint, runtime boundary, and remaining follow-up
+- `docs/migration/sprint-1.md` — current TS/Rust checkpoint, migrated tools, and remaining follow-up
 
 ## Run
 
@@ -74,8 +74,14 @@ npm run mcp-server:dev -- --workspace-root /path/to/workspace
 
 ### Current migration boundary
 
-- fully migrated through TS -> Rust: `code.inspect_tree`, `code.find_symbol`
-- still on the Python compatibility path: `code.search_text`, `code.trace_symbol`, `code.trace_callers`, `code.list_endpoints`
+| Tool | Runtime path | Notes |
+| --- | --- | --- |
+| `code.inspect_tree` | TS -> Rust | Stable migrated path |
+| `code.find_symbol` | TS -> Rust | Supports TypeScript/JavaScript, Java, Python, Rust |
+| `code.list_endpoints` | TS -> Rust | Supports React Router 7, Spring, Python decorators/URL patterns, Rust Actix/async-graphql |
+| `code.search_text` | Python compatibility path | Pending migration |
+| `code.trace_symbol` | Python compatibility path | Pending migration |
+| `code.trace_callers` | Python compatibility path | Pending migration |
 
 ### Rust engine command
 
@@ -94,6 +100,8 @@ export NAVIGATION_MCP_RUST_ENGINE_CMD='["cargo","run","--quiet","--manifest-path
 ```
 
 ## Legacy / oracle runtime: Python
+
+The Python runtime remains in the repository as a compatibility/oracle path while `code.search_text`, `code.trace_symbol`, and `code.trace_callers` are still being migrated. It is no longer the primary runtime for the migrated tools.
 
 ### Stdio
 
@@ -127,8 +135,8 @@ You need these programs installed on the machine:
 
 - `node` 24+
 - `npm`
-- `python` 3.12+ (for the legacy/oracle path and compatibility bridge)
-- `uv` (for the legacy/oracle path)
+- `python` 3.12+ (only needed for the legacy/oracle path and Python-side tests)
+- `uv` (only needed for the legacy/oracle path and Python-side tests)
 - `ripgrep`
 - `opencode` (if you want to use it from OpenCode)
 
@@ -142,7 +150,7 @@ If `opencode` is not available in your environment yet, install it using the off
 
 ### Install this MCP locally
 
-For the current Sprint 2 checkpoint, the npm-first path is:
+For the current migration checkpoint, the npm-first path is:
 
 ```bash
 npm install
@@ -154,7 +162,7 @@ Then run:
 npm run mcp-server:dev -- --workspace-root /path/to/workspace
 ```
 
-The legacy Python install path is still available while the migration is in progress:
+The legacy Python install path is still available while the migration is in progress for the non-migrated tools:
 
 From the root of this repository:
 
@@ -182,6 +190,18 @@ For the npm-first runtime, verify the TypeScript shell exposes the stable tool s
 
 ```bash
 node --experimental-strip-types packages/mcp-server/src/bin/navigation-mcp.ts --describe-tools
+```
+
+Run the Rust engine tests for the migrated analyzer/runtime path:
+
+```bash
+cargo test --manifest-path crates/navigation-engine/Cargo.toml
+```
+
+Run the TypeScript runtime tests:
+
+```bash
+npm run mcp-server:test
 ```
 
 You can also start it manually over stdio:
@@ -237,11 +257,12 @@ Then open OpenCode in your project and ask it to use the navigation MCP for code
 
 If the other machine uses the same OpenCode configuration style, the migration steps are:
 
-1. Install `python`, `uv`, `ripgrep`, and `opencode`
+1. Install `node`, `npm`, `ripgrep`, and `opencode`
 2. Clone this repository
-3. Run `uv tool install .`
-4. Copy or recreate the `opencode.json` MCP entry
-5. Copy your project skill/rules if you want the same behavior defaults
+3. Run `npm install`
+4. Start the TS runtime with `npm run mcp-server:dev -- --workspace-root /path/to/workspace`
+5. Copy or recreate the `opencode.json` MCP entry
+6. Install `python` and `uv` too only if you need the legacy/oracle path during the migration
 
 ## Public Tool Contract
 

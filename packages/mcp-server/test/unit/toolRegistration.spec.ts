@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createMcpServer } from "../src/app/createMcpServer.ts";
-import type { EngineClient } from "../src/engine/rustEngineClient.ts";
-import type { PythonFallbackBridge } from "../src/runtime/pythonFallback.ts";
+import { createMcpServer } from "../../src/app/createMcpServer.ts";
+import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
+import type { PythonFallbackBridge } from "../../src/runtime/pythonFallback.ts";
 
 class MockEngineClient implements EngineClient {
   requests: Array<{ capability: string; payload: unknown }> = [];

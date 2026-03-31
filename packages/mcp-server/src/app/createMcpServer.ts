@@ -5,6 +5,7 @@ import {
 import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.ts";
 import { createFindSymbolService } from "../services/findSymbolService.ts";
 import { createInspectTreeService } from "../services/inspectTreeService.ts";
+import { createListEndpointsService } from "../services/listEndpointsService.ts";
 import {
   registerCodeTools,
   type RegisteredCodeTool,
@@ -43,11 +44,16 @@ export function createMcpServer(
     workspaceRoot: options.workspaceRoot,
     engineClient,
   });
+  const listEndpointsService = createListEndpointsService({
+    workspaceRoot: options.workspaceRoot,
+    engineClient,
+  });
 
   const tools = registerCodeTools({
     fallbackBridge,
     inspectTreeHandler: (payload) => inspectTreeService.validateAndExecute(payload),
     findSymbolHandler: (payload) => findSymbolService.validateAndExecute(payload),
+    listEndpointsHandler: (payload) => listEndpointsService.validateAndExecute(payload),
   });
 
   return {

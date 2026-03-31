@@ -2,11 +2,14 @@ import type {
   MatchMode,
   PublicLanguage,
   PublicSymbolKind,
+  PublicEndpointKind,
+  PublicFramework,
 } from "../contracts/public/code.ts";
 
 export const ENGINE_CAPABILITIES = [
   "workspace.inspect_tree",
   "workspace.find_symbol",
+  "workspace.list_endpoints",
 ] as const;
 export type EngineCapability = (typeof ENGINE_CAPABILITIES)[number];
 
@@ -82,6 +85,39 @@ export interface FindSymbolEngineResult {
   items: FindSymbolEngineItem[];
   totalMatched: number;
   truncated: boolean;
+}
+
+export interface ListEndpointsEnginePayload {
+  path: string | null;
+  analyzerLanguage: AnalyzerLanguage;
+  publicLanguageFilter: PublicLanguage | null;
+  publicFrameworkFilter: PublicFramework | null;
+  kind: PublicEndpointKind;
+  limit: number;
+}
+
+export interface ListEndpointsEngineItem {
+  name: string;
+  kind: string;
+  path: string | null;
+  file: string;
+  line: number;
+  language: PublicLanguage | null;
+  framework: PublicFramework | null;
+}
+
+export interface ListEndpointsEngineCounts {
+  byKind: Record<string, number>;
+  byLanguage: Record<string, number>;
+  byFramework: Record<string, number>;
+}
+
+export interface ListEndpointsEngineResult {
+  resolvedPath: string | null;
+  items: ListEndpointsEngineItem[];
+  totalMatched: number;
+  truncated: boolean;
+  counts: ListEndpointsEngineCounts;
 }
 
 export interface EngineSuccess<TResult = unknown> {

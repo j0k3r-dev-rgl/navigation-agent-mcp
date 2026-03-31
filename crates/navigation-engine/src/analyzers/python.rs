@@ -4,7 +4,10 @@ use std::path::Path;
 use tree_sitter::{Node, Parser};
 
 use super::language_analyzer::LanguageAnalyzer;
-use super::types::{infer_public_language, AnalyzerLanguage, FindSymbolQuery, SymbolDefinition};
+use super::types::{
+    infer_public_language, normalize_public_endpoint_kind, AnalyzerLanguage, EndpointDefinition,
+    FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
+};
 
 pub struct PythonAnalyzer;
 
@@ -17,9 +20,17 @@ impl LanguageAnalyzer for PythonAnalyzer {
         &[".py"]
     }
 
-    fn find_symbols(&self, path: &Path, source: &str, _query: &FindSymbolQuery) -> Vec<SymbolDefinition> {
+    fn find_symbols(
+        &self,
+        path: &Path,
+        source: &str,
+        _query: &FindSymbolQuery,
+    ) -> Vec<SymbolDefinition> {
         let mut parser = Parser::new();
-        if parser.set_language(&tree_sitter_python::LANGUAGE.into()).is_err() {
+        if parser
+            .set_language(&tree_sitter_python::LANGUAGE.into())
+            .is_err()
+        {
             return Vec::new();
         }
 
@@ -37,6 +48,54 @@ impl LanguageAnalyzer for PythonAnalyzer {
         );
 
         dedupe_symbols(symbols)
+    }
+
+    fn find_endpoints(
+        &self,
+        path: &Path,
+        source: &str,
+        query: &FindEndpointsQuery,
+    ) -> Vec<EndpointDefinition> {
+        let mut parser = Parser::new();
+        if parser
+            .set_language(&tree_sitter_python::LANGUAGE.into())
+            .is_err()
+        {
+            return Vec::new();
+        }
+
+        let Some(tree) = parser.parse(source, None) else {
+            return Vec::new();
+        };
+
+        let public_language = infer_public_language(path);
+        let mut endpoints = Vec::new();
+        collect_endpoints(
+            tree.root_node(),
+            source.as_bytes(),
+            public_language.as_deref(),
+            &mut endpoints,
+        );
+
+        // Filter by kind
+        let filtered: Vec<EndpointDefinition> = endpoints
+            .into_iter()
+            .filter(|e| {
+                if query.kind == "any" {
+                    true
+                } else {
+                    e.kind == query.kind
+                }
+            })
+            .take(query.limit)
+            .collect();
+
+        filtered
+    }
+
+    fn supports_framework(&self, framework: Option<&str>) -> bool {
+        // Python has no specific framework filter (supports all)
+        framework.is_none()
     }
 }
 
@@ -65,7 +124,9 @@ fn extract_symbol(
     let effective_node = unwrap_decorated_definition(node)?;
     let raw_kind = match effective_node.kind() {
         "class_definition" => "class",
-        "function_definition" | "async_function_definition" => classify_function_kind(effective_node)?,
+        "function_definition" | "async_function_definition" => {
+            classify_function_kind(effective_node)?
+        }
         _ => return None,
     };
 
@@ -139,92 +200,270 @@ fn node_text(node: Node, source: &[u8]) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::analyzers::FindSymbolQuery;
+/// Collects FastAPI, Flask, and Django endpoints from Python source.
+fn collect_endpoints(
+    node: Node,
+    source: &[u8],
+    public_language: Option<&str>,
+    endpoints: &mut Vec<EndpointDefinition>,
+) {
+    // Check for decorated_definition (FastAPI/Flask decorators)
+    if node.kind() == "decorated_definition" {
+        // Extract all endpoints from all decorators on this function
+        let found = extract_decorator_endpoints(node, source, public_language);
+        endpoints.extend(found);
+    }
 
-    fn any_query() -> FindSymbolQuery {
-        FindSymbolQuery {
-            symbol: "load".to_string(),
-            kind: "any".to_string(),
-            match_mode: "fuzzy".to_string(),
-            public_language_filter: None,
-            limit: 50,
+    // Check for call nodes (Django path()/url() calls can appear anywhere)
+    if node.kind() == "call" {
+        if let Some(endpoint) = extract_django_call_endpoint(&node, source, public_language) {
+            endpoints.push(endpoint);
         }
     }
 
-    #[test]
-    fn extracts_supported_python_definitions() {
-        let analyzer = PythonAnalyzer;
-        let source = r#"
-class Worker:
-    @classmethod
-    def build(cls):
-        return cls()
+    // Recursively traverse the tree
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            collect_endpoints(child, source, public_language, endpoints);
+        }
+    }
+}
 
-    async def fetch(self):
-        return 1
+/// Extracts all endpoints from a decorated_definition node (FastAPI/Flask).
+/// Pattern: @app.get("/path") or @app.route("/path")
+/// Returns endpoints for ALL decorators on the function.
+fn extract_decorator_endpoints(
+    node: Node,
+    source: &[u8],
+    public_language: Option<&str>,
+) -> Vec<EndpointDefinition> {
+    let mut results = Vec::new();
 
-def load_data():
-    return 1
+    // Find the function_definition inside decorated_definition
+    let Some(function_def) = find_function_definition(node) else {
+        return results;
+    };
 
-async def fetch_users():
-    return []
+    // Get function name
+    let Some(name_node) = function_def.child_by_field_name("name") else {
+        return results;
+    };
+    let Some(name) = node_text(name_node, source) else {
+        return results;
+    };
 
-@decorator
-def serialize():
-    return "ok"
-
-@decorator
-class DecoratedService:
-    pass
-
-class DecoratedMethods:
-    @staticmethod
-    @audit
-    def save():
-        return True
-"#;
-
-        let items = analyzer.find_symbols(Path::new("profiles/service.py"), source, &any_query());
-        let kinds = items
-            .iter()
-            .map(|item| (item.symbol.as_str(), item.kind.as_str(), item.language.as_deref()))
-            .collect::<Vec<_>>();
-
-        assert!(kinds.contains(&("Worker", "class", Some("python"))));
-        assert!(kinds.contains(&("build", "method", Some("python"))));
-        assert!(kinds.contains(&("fetch", "method", Some("python"))));
-        assert!(kinds.contains(&("load_data", "function", Some("python"))));
-        assert!(kinds.contains(&("fetch_users", "function", Some("python"))));
-        assert!(kinds.contains(&("serialize", "function", Some("python"))));
-        assert!(kinds.contains(&("DecoratedService", "class", Some("python"))));
-        assert!(kinds.contains(&("save", "method", Some("python"))));
-
-        assert_eq!(items.iter().filter(|item| item.symbol == "serialize").count(), 1);
-        assert_eq!(items.iter().filter(|item| item.symbol == "DecoratedService").count(), 1);
-        assert_eq!(items.iter().filter(|item| item.symbol == "save").count(), 1);
+    // Find ALL decorators and extract HTTP method + path from each
+    for index in 0..node.named_child_count() {
+        let Some(child) = node.named_child(index) else {
+            continue;
+        };
+        if child.kind() == "decorator" {
+            if let Some((http_method, path)) = extract_decorator_info(child, source) {
+                results.push(EndpointDefinition {
+                    name: name.clone(),
+                    kind: normalize_public_endpoint_kind(&http_method),
+                    path: Some(path),
+                    file: String::new(),
+                    line: (node.start_position().row + 1) as u32,
+                    language: public_language.map(str::to_string),
+                    framework: None,
+                });
+            }
+        }
     }
 
-    #[test]
-    fn excludes_unsupported_python_constructs() {
-        let analyzer = PythonAnalyzer;
-        let source = r#"
-value = lambda: 1
-from users import load_alias
+    results
+}
 
-def outer():
-    def inner():
-        return 1
-    return inner
-"#;
-
-        let items = analyzer.find_symbols(Path::new("profiles/unsupported.py"), source, &any_query());
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].symbol, "outer");
-        assert_eq!(items[0].kind, "function");
-        assert!(items.iter().all(|item| item.symbol != "inner"));
-        assert!(items.iter().all(|item| item.symbol != "load_alias"));
+/// Finds the function_definition inside a decorated_definition.
+fn find_function_definition(node: Node) -> Option<Node> {
+    for index in 0..node.named_child_count() {
+        let child = node.named_child(index)?;
+        if matches!(
+            child.kind(),
+            "function_definition" | "async_function_definition"
+        ) {
+            return Some(child);
+        }
     }
+    None
+}
+
+/// Extracts HTTP method and path from a decorator node.
+/// Handles both @app.get("/path") and @app.route("/path") patterns.
+fn extract_decorator_info(node: Node, source: &[u8]) -> Option<(String, String)> {
+    // decorator node's named child is the call/attribute directly (not a field named "expression")
+    for index in 0..node.named_child_count() {
+        let child = node.named_child(index)?;
+        match child.kind() {
+            "call" => {
+                let function = child.child_by_field_name("function")?;
+                return extract_route_call(&function, &child, source);
+            }
+            "attribute" => {
+                // @app.route without call - not a valid route decorator for our purposes
+                continue;
+            }
+            _ => continue,
+        }
+    }
+    None
+}
+
+/// Extracts route info from a call expression like app.get("/path").
+fn extract_route_call(
+    function: &Node,
+    call_node: &Node,
+    source: &[u8],
+) -> Option<(String, String)> {
+    // function should be an attribute like app.get
+    if function.kind() != "attribute" {
+        return None;
+    }
+
+    let attr_node = function.child_by_field_name("attribute")?;
+    let method_name = node_text(attr_node, source)?;
+
+    // Check if this is a routing decorator
+    let http_methods = [
+        "get",
+        "post",
+        "put",
+        "delete",
+        "patch",
+        "route",
+        "api_route",
+    ];
+    if !http_methods.contains(&method_name.as_str()) {
+        return None;
+    }
+
+    // Extract the path from arguments
+    let path = extract_first_string_argument(call_node, source)?;
+
+    Some((method_name, path))
+}
+
+/// Extracts the first string argument from a call expression.
+fn extract_first_string_argument(call_node: &Node, source: &[u8]) -> Option<String> {
+    let args = call_node.child_by_field_name("arguments")?;
+
+    // Look for string arguments (Python tree-sitter uses "string" for string literals)
+    for index in 0..args.named_child_count() {
+        let arg = args.named_child(index)?;
+        if arg.kind() == "string" {
+            return extract_string_value(&arg, source);
+        }
+    }
+
+    None
+}
+
+/// Extracts the string value from a string node (handles string_fragment).
+fn extract_string_value(node: &Node, source: &[u8]) -> Option<String> {
+    if node.kind() != "string" {
+        return None;
+    }
+
+    // Python string node contains string_fragment child
+    for index in 0..node.named_child_count() {
+        let child = node.named_child(index)?;
+        if child.kind() == "string_fragment" {
+            return node_text(child, source);
+        }
+        if child.kind() == "interpolation" {
+            // f-string, skip for simplicity
+            return None;
+        }
+    }
+
+    // Fallback: try to get text directly from the string node and strip quotes
+    let text = node_text(*node, source)?;
+    let trimmed = text.trim_start_matches('"').trim_end_matches('"');
+    let trimmed = trimmed.trim_start_matches('\'').trim_end_matches('\'');
+    if trimmed.is_empty() || trimmed.len() == text.len() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+/// Extracts endpoint from a Django path() or url() call.
+fn extract_django_call_endpoint(
+    call_node: &Node,
+    source: &[u8],
+    public_language: Option<&str>,
+) -> Option<EndpointDefinition> {
+    let function = call_node.child_by_field_name("function")?;
+
+    // Check if this is path() or url() call
+    let func_name = node_text(function, source)?;
+    if !matches!(func_name.as_str(), "path" | "url") {
+        return None;
+    }
+
+    let args = call_node.child_by_field_name("arguments")?;
+
+    // First argument is the path pattern
+    let path = extract_nth_string_argument(&args, source, 0)?;
+
+    // Second argument is the view - extract its name
+    let view_name = extract_view_name(&args, source)?;
+
+    Some(EndpointDefinition {
+        name: view_name,
+        kind: normalize_public_endpoint_kind("route"),
+        path: Some(path),
+        file: String::new(),
+        line: (call_node.start_position().row + 1) as u32,
+        language: public_language.map(str::to_string),
+        framework: None,
+    })
+}
+
+/// Extracts the nth string argument from an argument list.
+fn extract_nth_string_argument(args: &Node, source: &[u8], n: usize) -> Option<String> {
+    let mut string_count = 0;
+
+    for index in 0..args.named_child_count() {
+        let arg = args.named_child(index)?;
+        if arg.kind() == "string" {
+            if string_count == n {
+                return extract_string_value(&arg, source);
+            }
+            string_count += 1;
+        }
+    }
+
+    None
+}
+
+/// Extracts the view name from the second argument of a Django path() call.
+/// Handles both attribute (views.article_list) and identifier (article_list) patterns.
+fn extract_view_name(args: &Node, source: &[u8]) -> Option<String> {
+    let mut arg_index = 0;
+
+    for index in 0..args.named_child_count() {
+        let arg = args.named_child(index)?;
+        // Skip string arguments (the path pattern)
+        if arg.kind() == "string" {
+            arg_index += 1;
+            continue;
+        }
+
+        // The view is typically the second non-keyword argument
+        if arg_index == 1 {
+            return match arg.kind() {
+                // views.article_list
+                "attribute" => {
+                    let attr = arg.child_by_field_name("attribute")?;
+                    node_text(attr, source)
+                }
+                // article_list (identifier)
+                "identifier" => node_text(arg, source),
+                _ => None,
+            };
+        }
+    }
+
+    None
 }

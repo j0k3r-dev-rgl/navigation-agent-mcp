@@ -1,21 +1,26 @@
-use crate::analyzers::{AnalyzerLanguage, AnalyzerRegistry, FindSymbolQuery, SymbolDefinition};
+use std::collections::HashMap;
+
+use crate::analyzers::{
+    AnalyzerLanguage, AnalyzerRegistry, EndpointDefinition, FindEndpointsQuery,
+};
 use crate::error::EngineError;
 use crate::protocol::{
-    EngineRequest, EngineResponse, FindSymbolItem, FindSymbolRequestPayload, FindSymbolResult,
+    EngineRequest, EngineResponse, ListEndpointsCounts, ListEndpointsItem,
+    ListEndpointsRequestPayload, ListEndpointsResult,
 };
 use crate::workspace::{
     canonicalize_workspace_root, collect_supported_source_files, contains_hard_ignored_segment,
     public_path, resolve_scope,
 };
 
-pub const CAPABILITY: &str = "workspace.find_symbol";
+pub const CAPABILITY: &str = "workspace.list_endpoints";
 
 pub fn handle(request: EngineRequest) -> EngineResponse {
     let parsed_payload =
-        serde_json::from_value::<FindSymbolRequestPayload>(request.payload.clone());
+        serde_json::from_value::<ListEndpointsRequestPayload>(request.payload.clone());
 
     match parsed_payload {
-        Ok(payload) => match find_symbol(&request.workspace_root, payload) {
+        Ok(payload) => match list_endpoints(&request.workspace_root, payload) {
             Ok(result) => EngineResponse::success(request.id, &result),
             Err(error) => EngineResponse::error(request.id, error),
         },
@@ -25,19 +30,24 @@ pub fn handle(request: EngineRequest) -> EngineResponse {
     }
 }
 
-pub fn find_symbol(
+pub fn list_endpoints(
     workspace_root: &str,
-    payload: FindSymbolRequestPayload,
-) -> Result<FindSymbolResult, EngineError> {
+    payload: ListEndpointsRequestPayload,
+) -> Result<ListEndpointsResult, EngineError> {
     let workspace_root = canonicalize_workspace_root(workspace_root)?;
     let scope = resolve_scope(&workspace_root, payload.path.as_deref())?;
 
     if contains_hard_ignored_segment(&workspace_root, &scope.absolute_path) {
-        return Ok(FindSymbolResult {
+        return Ok(ListEndpointsResult {
             resolved_path: scope.explicit.then_some(scope.public_path),
             items: Vec::new(),
             total_matched: 0,
             truncated: false,
+            counts: ListEndpointsCounts {
+                by_kind: HashMap::new(),
+                by_language: HashMap::new(),
+                by_framework: HashMap::new(),
+            },
         });
     }
 
@@ -46,11 +56,10 @@ pub fn find_symbol(
     let supported_extensions = registry.supported_extensions(analyzer_language);
     let files =
         collect_supported_source_files(&workspace_root, &scope, &supported_extensions, false)?;
-    let query = FindSymbolQuery {
-        symbol: payload.symbol,
+    let query = FindEndpointsQuery {
         kind: payload.kind,
-        match_mode: payload.match_mode,
         public_language_filter: payload.public_language_filter,
+        public_framework_filter: payload.public_framework_filter,
         limit: payload.limit,
     };
 
@@ -60,16 +69,21 @@ pub fn find_symbol(
             continue;
         };
 
+        // Skip if framework filter doesn't match analyzer's supported frameworks
+        if !analyzer.supports_framework(query.public_framework_filter.as_deref()) {
+            continue;
+        }
+
         let source = std::fs::read_to_string(&file_path)
             .map_err(|error| EngineError::backend_execution_failed(error.to_string()))?;
 
         let file_public_path = public_path(&workspace_root, &file_path);
         items.extend(
             analyzer
-                .find_symbols(&file_path, &source, &query)
+                .find_endpoints(&file_path, &source, &query)
                 .into_iter()
                 .map(|mut item| {
-                    item.path = file_public_path.clone();
+                    item.file = file_public_path.clone();
                     item
                 }),
         );
@@ -77,17 +91,18 @@ pub fn find_symbol(
 
     let mut filtered = items
         .into_iter()
-        .filter(|item| matches_symbol(item, &query))
         .filter(|item| matches_kind(item, &query))
         .filter(|item| matches_public_language(item, &query))
+        .filter(|item| matches_public_framework(item, &query))
         .collect::<Vec<_>>();
 
     filtered.sort_by(|left, right| {
-        (&left.path, left.line, &left.symbol, &left.kind).cmp(&(
-            &right.path,
-            right.line,
-            &right.symbol,
+        (&left.kind, &left.path, &left.file, left.line, &left.name).cmp(&(
             &right.kind,
+            &right.path,
+            &right.file,
+            right.line,
+            &right.name,
         ))
     });
 
@@ -97,11 +112,15 @@ pub fn find_symbol(
         filtered.truncate(query.limit);
     }
 
-    Ok(FindSymbolResult {
+    let items: Vec<ListEndpointsItem> = filtered.into_iter().map(map_endpoint_item).collect();
+    let counts = calculate_counts(&items);
+
+    Ok(ListEndpointsResult {
         resolved_path: scope.explicit.then_some(scope.public_path),
         total_matched,
         truncated,
-        items: filtered.into_iter().map(map_symbol_item).collect(),
+        items,
+        counts,
     })
 }
 
@@ -119,33 +138,54 @@ fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError>
     }
 }
 
-fn map_symbol_item(item: SymbolDefinition) -> FindSymbolItem {
-    FindSymbolItem {
-        symbol: item.symbol,
+fn map_endpoint_item(item: EndpointDefinition) -> ListEndpointsItem {
+    ListEndpointsItem {
+        name: item.name,
         kind: item.kind,
         path: item.path,
+        file: item.file,
         line: item.line,
         language: item.language,
+        framework: item.framework,
     }
 }
 
-fn matches_symbol(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {
-    match query.match_mode.as_str() {
-        "fuzzy" => item
-            .symbol
-            .to_ascii_lowercase()
-            .contains(&query.symbol.to_ascii_lowercase()),
-        _ => item.symbol == query.symbol,
-    }
-}
-
-fn matches_kind(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {
+fn matches_kind(item: &EndpointDefinition, query: &FindEndpointsQuery) -> bool {
     query.kind == "any" || item.kind == query.kind
 }
 
-fn matches_public_language(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {
+fn matches_public_language(item: &EndpointDefinition, query: &FindEndpointsQuery) -> bool {
     match query.public_language_filter.as_deref() {
         Some(expected) => item.language.as_deref() == Some(expected),
         None => true,
+    }
+}
+
+fn matches_public_framework(item: &EndpointDefinition, query: &FindEndpointsQuery) -> bool {
+    match query.public_framework_filter.as_deref() {
+        Some(expected) => item.framework.as_deref() == Some(expected),
+        None => true,
+    }
+}
+
+fn calculate_counts(items: &[ListEndpointsItem]) -> ListEndpointsCounts {
+    let mut by_kind: HashMap<String, usize> = HashMap::new();
+    let mut by_language: HashMap<String, usize> = HashMap::new();
+    let mut by_framework: HashMap<String, usize> = HashMap::new();
+
+    for item in items {
+        *by_kind.entry(item.kind.clone()).or_insert(0) += 1;
+        if let Some(ref lang) = item.language {
+            *by_language.entry(lang.clone()).or_insert(0) += 1;
+        }
+        if let Some(ref fw) = item.framework {
+            *by_framework.entry(fw.clone()).or_insert(0) += 1;
+        }
+    }
+
+    ListEndpointsCounts {
+        by_kind,
+        by_language,
+        by_framework,
     }
 }

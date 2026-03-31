@@ -3,6 +3,7 @@ import {
   type CodeToolName,
   type FindSymbolInput,
   type InspectTreeInput,
+  type ListEndpointsInput,
 } from "../contracts/public/code.ts";
 import type { ResponseEnvelope } from "../contracts/public/common.ts";
 import type {
@@ -24,6 +25,9 @@ export interface RegisterCodeToolsOptions {
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
   findSymbolHandler?: (
+    payload: Record<string, unknown>,
+  ) => Promise<ResponseEnvelope<unknown>>;
+  listEndpointsHandler?: (
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
 }
@@ -107,6 +111,21 @@ export function registerCodeTools(
           }
 
           return options.findSymbolHandler(payload as FindSymbolInput);
+        },
+      };
+    }
+
+    if (tool.name === "code.list_endpoints") {
+      return {
+        ...tool,
+        execute: async (payload) => {
+          if (!options.listEndpointsHandler) {
+            throw new Error(
+              "List endpoints migrated handler is scaffolded but not yet wired.",
+            );
+          }
+
+          return options.listEndpointsHandler(payload as ListEndpointsInput);
         },
       };
     }

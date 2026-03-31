@@ -21,6 +21,14 @@ pub struct FindSymbolQuery {
     pub limit: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct FindEndpointsQuery {
+    pub kind: String,
+    pub public_language_filter: Option<String>,
+    pub public_framework_filter: Option<String>,
+    pub limit: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolDefinition {
@@ -29,6 +37,18 @@ pub struct SymbolDefinition {
     pub path: String,
     pub line: u32,
     pub language: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EndpointDefinition {
+    pub name: String,
+    pub kind: String,
+    pub path: Option<String>,
+    pub file: String,
+    pub line: u32,
+    pub language: Option<String>,
+    pub framework: Option<String>,
 }
 
 pub fn file_extension(path: &Path) -> Option<String> {
@@ -62,24 +82,32 @@ pub fn normalize_public_symbol_kind(raw_kind: &str) -> String {
     .to_string()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::normalize_public_symbol_kind;
-
-    #[test]
-    fn normalizes_internal_kind_aliases_to_public_kinds() {
-        assert_eq!(normalize_public_symbol_kind("class_declaration"), "class");
-        assert_eq!(normalize_public_symbol_kind("method_declaration"), "method");
-        assert_eq!(normalize_public_symbol_kind("type_alias"), "type");
-        assert_eq!(normalize_public_symbol_kind("record"), "type");
-        assert_eq!(
-            normalize_public_symbol_kind("annotation_type"),
-            "annotation"
-        );
+/// Normalizes internal endpoint kinds to public endpoint kinds.
+/// Maps source-level identifiers to unified kinds:
+/// - "loader", "action" → "route" (React Router 7)
+/// - "@GetMapping", "@PostMapping", etc. → "rest" (Spring)
+/// - "@QueryMapping", "@MutationMapping" → "graphql" (Spring GraphQL)
+/// - "get", "post", "put", "delete", "patch" → "rest" (FastAPI, Flask, Actix, Axum)
+pub fn normalize_public_endpoint_kind(raw_kind: &str) -> String {
+    match raw_kind {
+        // React Router 7
+        "loader" | "action" => "route",
+        // Spring REST
+        "@GetMapping" | "@PostMapping" | "@PutMapping" | "@DeleteMapping" | "@PatchMapping"
+        | "@RequestMapping" | "GetMapping" | "PostMapping" | "PutMapping" | "DeleteMapping"
+        | "PatchMapping" | "RequestMapping" => "rest",
+        // Spring GraphQL
+        "@QueryMapping"
+        | "@MutationMapping"
+        | "@SubscriptionMapping"
+        | "QueryMapping"
+        | "MutationMapping"
+        | "SubscriptionMapping" => "graphql",
+        // FastAPI, Flask, Axum route methods
+        "get" | "post" | "put" | "delete" | "patch" | "route" => "rest",
+        // async-graphql
+        "Object" | "Subscription" => "graphql",
+        _ => "any",
     }
-
-    #[test]
-    fn unknown_kind_degrades_to_any() {
-        assert_eq!(normalize_public_symbol_kind("totally_unknown"), "any");
-    }
+    .to_string()
 }

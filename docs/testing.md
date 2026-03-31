@@ -9,6 +9,7 @@ That means the highest-value tests focus on:
 - MCP tool discoverability and schema shape
 - normalized envelopes and stable metadata
 - `find_symbol` exact/fuzzy/language-framework semantics
+- `list_endpoints` route/rest/graphql discovery semantics
 - path safety errors
 - inspect-tree hard-ignore behavior
 - truncation semantics for bounded responses
@@ -23,13 +24,30 @@ tests/
 └── test_tool_registration.py
 
 packages/mcp-server/test/
-├── findSymbolContract.spec.ts
-├── inspectTreeContract.spec.ts
-├── findSymbolService.spec.ts
-└── toolRegistration.spec.ts
+├── contract/
+│   ├── findSymbolContract.spec.ts
+│   └── inspectTreeContract.spec.ts
+└── unit/
+    ├── findSymbolService.spec.ts
+    ├── normalizeFindSymbolInput.spec.ts
+    └── toolRegistration.spec.ts
 
 packages/contract-tests/test/
-└── public-contract.spec.ts
+└── contract/
+    ├── findSymbolContract.spec.ts
+    └── inspectTreeParity.spec.ts
+
+crates/navigation-engine/tests/
+├── analyzers_java.rs
+├── analyzers_python.rs
+├── analyzers_rust.rs
+├── analyzers_types.rs
+├── analyzers_typescript.rs
+├── capabilities_find_symbol.rs
+├── capabilities_inspect_tree.rs
+├── capabilities_list_endpoints.rs
+├── protocol.rs
+└── workspace.rs
 ```
 
 ## What each test module covers
@@ -51,31 +69,44 @@ packages/contract-tests/test/
 - verifies service-level normalization for truncated search responses
 - verifies count metadata and effective language detection
 
-### `packages/mcp-server/test/findSymbolService.spec.ts`
+### `packages/mcp-server/test/unit/findSymbolService.spec.ts`
 
 - verifies migrated request shaping for `react-router`, `javascript`, and `spring`
 - verifies stable summary, truncation, and error-envelope mapping at the TS service layer
 
-### `packages/mcp-server/test/findSymbolContract.spec.ts`
+### `packages/mcp-server/test/contract/findSymbolContract.spec.ts`
 
 - verifies the migrated `code.find_symbol` stdio runtime path without Python
 - verifies Java framework inference and partial-result envelopes at the public runtime boundary
 
-### `packages/mcp-server/test/toolRegistration.spec.ts`
+### `packages/mcp-server/test/unit/toolRegistration.spec.ts`
 
 - verifies the npm-first TypeScript runtime exposes the same six `code.*` tools
 - verifies the discoverable schema defaults/required fields remain stable
 
-### `packages/mcp-server/test/inspectTreeContract.spec.ts`
+### `packages/mcp-server/test/contract/inspectTreeContract.spec.ts`
 
 - verifies the migrated `code.inspect_tree` path through the TS runtime
 - verifies hidden-vs-hard-ignored behavior, truncation, and missing-path errors
 
-### `packages/contract-tests/test/public-contract.spec.ts`
+### `packages/contract-tests/test/contract/findSymbolContract.spec.ts`
+
+- verifies the public `code.find_symbol` contract through the TypeScript runtime without requiring Python
+
+### `packages/contract-tests/test/contract/inspectTreeParity.spec.ts`
 
 - compares the TypeScript `code.inspect_tree` output with the Python oracle when that oracle is available
-- verifies the Sprint 2 `code.find_symbol` public contract through the TypeScript runtime without requiring Python
 - skips with the exact blocking reason when Python MCP dependencies are missing in the environment
+
+### `crates/navigation-engine/tests/analyzers_*.rs`
+
+- verifies migrated analyzer behavior directly in Rust
+- covers TypeScript, Java, Python, and Rust symbol/endpoint extraction
+
+### `crates/navigation-engine/tests/capabilities_*.rs`
+
+- verifies Rust capability handlers for `inspect_tree`, `find_symbol`, and `list_endpoints`
+- verifies filters, truncation, and safe empty results at the engine boundary
 
 ## Run tests
 
@@ -93,6 +124,12 @@ Run the cross-runtime parity scaffold:
 
 ```bash
 npm run contract-tests
+```
+
+Run the Rust engine suite:
+
+```bash
+cargo test --manifest-path crates/navigation-engine/Cargo.toml
 ```
 
 Run a single module:
@@ -114,10 +151,10 @@ uv run pytest tests/test_inspect_tree_contract.py
 - exhaustive backend error translation across every adapter path
 - performance benchmarking
 
-Those areas can be expanded later, but the current migration checkpoint should remain protected FIRST by contract-focused tests.
+Those areas can be expanded later, but the current migration checkpoint should remain protected FIRST by contract-focused tests and the Rust engine suite.
 
 ## Current environment caveat
 
 The inspect-tree parity check depends on the Python oracle being importable. In the current repository state, that means the Python `mcp` dependency must be installed. If it is missing, that parity test skips instead of failing with a misleading contract regression.
 
-The migrated `code.find_symbol` contract tests do not depend on Python.
+The migrated `code.find_symbol` and `code.list_endpoints` runtime paths do not depend on Python.

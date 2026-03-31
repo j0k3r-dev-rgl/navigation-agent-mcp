@@ -50,8 +50,7 @@ impl EngineError {
             ),
             retryable: false,
             suggestion: Some(
-                "Provide an existing file or directory path inside the workspace root."
-                    .to_string(),
+                "Provide an existing file or directory path inside the workspace root.".to_string(),
             ),
             details: serde_json::json!({ "path": path }),
         }
@@ -60,10 +59,7 @@ impl EngineError {
     pub fn path_outside_workspace(path: &str) -> Self {
         Self {
             code: "PATH_OUTSIDE_WORKSPACE".to_string(),
-            message: format!(
-                "Path '{}' is outside the configured workspace root.",
-                path
-            ),
+            message: format!("Path '{}' is outside the configured workspace root.", path),
             retryable: false,
             suggestion: Some(
                 "Use a path inside the workspace root or omit the path filter.".to_string(),
