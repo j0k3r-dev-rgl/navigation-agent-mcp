@@ -161,7 +161,17 @@ fn walk_supported_files(
 ) -> Result<(), EngineError> {
     let read_dir = match fs::read_dir(current_path) {
         Ok(rd) => rd,
-        Err(_) => return Ok(()),
+        Err(err) => {
+            // Log permission errors to stderr but continue gracefully
+            if err.kind() == std::io::ErrorKind::PermissionDenied {
+                eprintln!(
+                    "Warning: Permission denied reading directory: {}",
+                    current_path.display()
+                );
+            }
+            // Silently skip directories we cannot read
+            return Ok(());
+        }
     };
     let mut entries = read_dir.filter_map(Result::ok).collect::<Vec<_>>();
 
