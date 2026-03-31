@@ -80,6 +80,8 @@ jobs:
     permissions:
       contents: read
       id-token: write  # needed for npm provenance
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +93,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-platform
 
       - name: Set version from git tag
         run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
