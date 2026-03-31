@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server-linux-x64",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Linux x64 binary for @navigation-agent/mcp-server. Install the main package instead.",
   "os": [
     "linux"

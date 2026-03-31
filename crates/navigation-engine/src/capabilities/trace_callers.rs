@@ -151,8 +151,10 @@ fn find_workspace_callers(
             continue;
         };
 
-        let source = std::fs::read_to_string(file_path)
-            .map_err(|error| EngineError::backend_execution_failed(error.to_string()))?;
+        let source = match std::fs::read_to_string(file_path) {
+            Ok(content) => content,
+            Err(_) => continue,
+        };
         let file_public_path = public_path(workspace_root, file_path);
         let query = FindCallersQuery {
             target_path: target_path.to_path_buf(),
