@@ -28,7 +28,7 @@ jobs:
             binary: navigation-engine
 
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-latest
             npm-pkg: mcp-server-darwin-x64
             binary: navigation-engine
 
