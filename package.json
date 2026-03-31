@@ -3,7 +3,8 @@
   "private": true,
   "packageManager": "npm@10",
   "workspaces": [
-    "packages/*"
+    "packages/mcp-server",
+    "packages/contract-tests"
   ],
   "scripts": {
     "mcp-server:dev": "npm --workspace @navigation-agent/mcp-server run dev",
