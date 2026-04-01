@@ -92,38 +92,143 @@ By default the server analyzes the directory where your agent is running. To pin
 
 ---
 
-## Supported languages
+## Supported Languages & Capabilities
 
-| Language | find_symbol | list_endpoints | trace_callers |
-|---|---|---|---|
-| TypeScript / JavaScript | ✓ | ✓ React Router 7 | ✓ |
-| Java | ✓ | ✓ Spring REST & GraphQL | ✓ |
-| Python | ✓ | ✓ FastAPI, Flask, Django | — |
-| Rust | ✓ | ✓ Actix, async-graphql | — |
+| Capability | Java | TypeScript | Python | Rust | All Files |
+|---|---|---|---|---|---|
+| **workspace.find_symbol** | ✓ | ✓ | ✓ | ✓ | — |
+| **workspace.list_endpoints** | ✓ Spring REST & GraphQL | ✓ React Router 7 | ✓ FastAPI, Flask | ✓ Actix | — |
+| **workspace.trace_callers** | ✓ | ✓ | — | — | — |
+| **workspace.trace_flow** | ✓ Full DI tracing | — | — | — | — |
+| **workspace.inspect_tree** | — | — | — | — | ✓ |
+| **workspace.search_text** | — | — | — | — | ✓ |
 
-`code.inspect_tree`, `code.search_text`, and `code.trace_symbol` work across all file types.
+**Legend:**
+- ✓ = Fully supported
+- — = Not supported (returns empty results)
+- **workspace.inspect_tree** and **workspace.search_text** work across all file types (no language parsing needed)
+
+### Java Special Features
+- **Full Spring DI tracing**: `trace_flow` follows interfaces to implementations through the complete call chain
+- **Infrastructure boundary detection**: Automatically stops recursion at adapters/repositories
+- **Method grouping**: Groups multiple calls to the same method with count
 
 ---
 
 ## Tools
 
-### `code.find_symbol`
+### `workspace.find_symbol`
 Find where a symbol (class, function, interface, etc.) is defined in the workspace.
 
-### `code.inspect_tree`
+**Example:** Find all implementations of `findUsersByRoot`
+```json
+{
+  "symbol": "findUsersByRoot",
+  "analyzerLanguage": "java"
+}
+```
+
+**Returns:**
+- Symbol name and kind (method, class, interface)
+- File path
+- Line start and line end (function boundaries)
+- Language
+
+---
+
+### `workspace.inspect_tree`
 Inspect the directory tree without reading file contents. Useful for orientation before diving in.
 
-### `code.list_endpoints`
+**Parameters:**
+- `path`: Directory to inspect (optional, defaults to workspace root)
+- `maxDepth`: Maximum depth to traverse (optional)
+- `includeStats`: Include file size and modified time (optional)
+
+---
+
+### `workspace.list_endpoints`
 List backend REST/GraphQL endpoints and frontend routes discovered by static analysis.
 
-### `code.search_text`
-Search plain text or regex patterns across workspace files. Requires `ripgrep`.
+**Supported frameworks:**
+- **Java**: Spring REST, Spring GraphQL
+- **TypeScript**: React Router 7
+- **Python**: FastAPI, Flask, Django
+- **Rust**: Actix-web, async-graphql
 
-### `code.trace_symbol`
-Trace a symbol forward from a known file to see where it flows.
+---
 
-### `code.trace_callers`
+### `workspace.search_text`
+Search plain text or regex patterns across workspace files using ripgrep.
+
+**Parameters:**
+- `query`: Search pattern (string or regex)
+- `path`: Scope path (optional)
+- `caseSensitive`: Case-sensitive search (optional)
+- `includePattern`: File pattern to include (optional, e.g., "*.java")
+
+---
+
+### `workspace.trace_flow` (Java only)
+Trace a method's complete call flow through the application, following Spring DI interfaces to their implementations.
+
+**Example:** Trace `getUsersByDependency` endpoint
+```json
+{
+  "path": "src/main/java/.../RootUserGraphQLController.java",
+  "symbol": "getUsersByDependency",
+  "analyzerLanguage": "java"
+}
+```
+
+**Features:**
+- Follows interfaces (ports) to implementations (adapters)
+- Stops recursion at infrastructure layer (adapters/repositories)
+- Groups multiple calls to the same method
+- Detects recursive calls
+- Returns call depth for each callee
+
+**Flow example:**
+```
+Controller.getUsersByDependency (depth 1)
+  → Port.getUsers (depth 2)
+    → UseCase.findUsersByRoot (depth 2)
+      → Repository.findByIds (depth 2)
+        → Adapter.findByIds (depth 3) [stops - infrastructure]
+```
+
+---
+
+### `workspace.trace_callers`
 Trace incoming callers for a symbol. Supports recursive traversal with configurable depth.
+
+**Parameters:**
+- `path`: Starting file path
+- `symbol`: Symbol name to trace
+- `analyzerLanguage`: Language ("java", "typescript", "python", "rust")
+- `maxDepth`: Maximum recursion depth (optional, default 5)
+
+---
+
+## Architecture
+
+The server uses a two-layer architecture:
+
+1. **Rust Engine** (`crates/navigation-engine/`)
+   - Fast parsing with tree-sitter
+   - Language-specific analyzers (Java, TypeScript, Python, Rust)
+   - Global project index for Java (interfaces, implementations)
+   - JSON-RPC interface
+
+2. **TypeScript Server** (MCP wrapper)
+   - MCP protocol handling
+   - Request/response marshalling
+   - Tool registration
+
+### Java Analysis Features
+- **Interface indexing**: Scans all interfaces and their implementations
+- **Field type resolution**: Resolves field types including wildcard imports
+- **Builder chain detection**: Filters Lombok builder noise
+- **Framework filtering**: Excludes `java.*`, `spring.*`, etc.
 
 ---
 
