@@ -207,10 +207,6 @@ impl JavaProjectIndex {
 
         if !class_name.is_empty() {
             let fq_name = if package_name == "unknown" {
-                eprintln!(
-                    "DEBUG: Interface '{}' has unknown package, file: {:?}",
-                    class_name, file_path
-                );
                 class_name.clone()
             } else {
                 format!("{}.{}", package_name, class_name)
@@ -352,23 +348,6 @@ impl JavaProjectIndex {
 
     /// Find all implementations of an interface (by fully qualified or simple name)
     pub fn find_implementations(&self, interface_name: &str) -> Vec<String> {
-        eprintln!(
-            "DEBUG find_implementations: looking for '{}'",
-            interface_name
-        );
-        eprintln!(
-            "DEBUG: interface_implementations has {} entries",
-            self.interface_implementations.len()
-        );
-        eprintln!(
-            "DEBUG: class_simple_to_fq has {} entries",
-            self.class_simple_to_fq.len()
-        );
-        eprintln!(
-            "DEBUG: interface_names has {} entries",
-            self.interface_names.len()
-        );
-
         // Try FQN first
         if let Some(imps) = self.interface_implementations.get(interface_name) {
             return imps.clone();
@@ -463,6 +442,89 @@ fn java_node_text(node: &Node, source: &[u8]) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+/// Check if a file is an infrastructure/persistence file that should stop recursion
+pub fn is_infrastructure_file(path: &str) -> bool {
+    let path_lower = path.to_lowercase();
+    // Check if path contains infrastructure/persistence
+    let is_infrastructure_path = path_lower.contains("infrastructure/persistence");
+    // Check if file ends with infrastructure patterns
+    let is_infrastructure_file = path_lower.ends_with("adapter.java")
+        || path_lower.ends_with("repository.java")
+        || path_lower.ends_with("dao.java");
+    is_infrastructure_path || is_infrastructure_file
+}
+
+/// Check if a type is a known external framework/library type
+fn is_external_framework_type(type_name: &str) -> bool {
+    // Remove generic parameters if present
+    let base_type = type_name.split('<').next().unwrap_or(type_name).trim();
+    let lower = base_type.to_lowercase();
+
+    // Java standard library
+    if lower.starts_with("java.") || lower.starts_with("javax.") || lower.starts_with("jakarta.") {
+        return true;
+    }
+    // Spring framework
+    if lower.starts_with("org.springframework.") {
+        return true;
+    }
+    // Common utility classes
+    if matches!(
+        lower.as_str(),
+        "string"
+            | "object"
+            | "integer"
+            | "long"
+            | "double"
+            | "float"
+            | "boolean"
+            | "byte"
+            | "short"
+            | "character"
+            | "system"
+            | "math"
+            | "stringbuilder"
+            | "stringbuffer"
+    ) {
+        return true;
+    }
+    // Common collections
+    if matches!(
+        lower.as_str(),
+        "list" | "set" | "map" | "collection" | "arraylist" | "hashmap" | "hashset"
+    ) {
+        return true;
+    }
+    false
+}
+
+/// Add is_project_type method to JavaProjectIndex
+impl JavaProjectIndex {
+    /// Check if a type is part of the project (not external framework)
+    pub fn is_project_type(&self, type_name: &str) -> bool {
+        // Remove generic parameters if present
+        let base_type = type_name.split('<').next().unwrap_or(type_name).trim();
+        let simple_name = base_type.split('.').last().unwrap_or(base_type);
+
+        // Check if it's a known interface
+        if self.interface_names.contains(simple_name) {
+            return true;
+        }
+
+        // Check if it's in the simple to FQN mapping
+        if self.class_simple_to_fq.contains_key(simple_name) {
+            return true;
+        }
+
+        // Check if it's a fully qualified name in our index
+        if self.interface_paths.contains_key(base_type) {
+            return true;
+        }
+
+        false
+    }
+}
+
 pub fn handle(request: EngineRequest) -> EngineResponse {
     let parsed_payload = serde_json::from_value::<TraceFlowRequestPayload>(request.payload.clone());
 
@@ -526,6 +588,8 @@ pub fn trace_flow(
         &mut visited,
         &mut all_callees,
         java_index,
+        &start_file_path,
+        &payload.symbol,
     );
 
     // Dedupe callees by path and line
@@ -565,8 +629,15 @@ fn trace_callees_recursive(
     visited: &mut BTreeMap<(String, String), usize>,
     results: &mut Vec<CalleeItem>,
     java_index: Option<&'static JavaProjectIndex>,
+    original_file: &str,
+    original_symbol: &str,
 ) {
     if current_depth >= max_depth {
+        return;
+    }
+
+    // Infrastructure boundary check - stop recursion at persistence layer
+    if is_infrastructure_file(file_path) {
         return;
     }
 
@@ -589,12 +660,7 @@ fn trace_callees_recursive(
     // Read the source file
     let source = match std::fs::read_to_string(&absolute_file_path) {
         Ok(s) => s,
-        Err(e) => {
-            eprintln!(
-                "DEBUG: Failed to read file '{}': {}",
-                absolute_file_path.display(),
-                e
-            );
+        Err(_) => {
             return;
         }
     };
@@ -604,19 +670,9 @@ fn trace_callees_recursive(
     let analyzer = match registry.analyzer_for_file(AnalyzerLanguage::Auto, &absolute_file_path) {
         Some(a) => a,
         None => {
-            eprintln!(
-                "DEBUG: No analyzer found for file '{}'",
-                absolute_file_path.display()
-            );
             return;
         }
     };
-
-    eprintln!(
-        "DEBUG: Analyzing file '{}' for symbol '{}'",
-        absolute_file_path.display(),
-        symbol
-    );
 
     let query = FindCalleesQuery {
         source_path: absolute_file_path.clone(),
@@ -626,6 +682,49 @@ fn trace_callees_recursive(
     let callees = analyzer.find_callees(&absolute_file_path, &source, &query);
 
     for callee in callees {
+        // Step 1: FILTER using global project index
+        // Check if this callee should be included based on receiver type
+        let should_include =
+            if let (Some(index), Some(receiver_type)) = (java_index, &callee.receiver_type) {
+                let clean_type = receiver_type
+                    .split('<')
+                    .next()
+                    .unwrap_or(receiver_type)
+                    .trim();
+
+                // Check if it's a project type (in the index)
+                let is_project_type = index.is_project_type(clean_type);
+
+                // Check if it's a known external type (framework/library)
+                let is_external_type = is_external_framework_type(clean_type);
+
+                // Include if:
+                // - It's a project type (in our index), OR
+                // - We don't know what it is (conservative: include unknown types)
+                // Exclude if:
+                // - It's a known external framework type
+                is_project_type || !is_external_type
+            } else {
+                // No receiver type or no index - include conservatively
+                true
+            };
+
+        if !should_include {
+            continue;
+        }
+
+        // Step 2: Check recursion (interface calls are NOT recursive even with same name)
+        let receiver_type_clean = callee
+            .receiver_type
+            .as_ref()
+            .map(|rt| rt.split('<').next().unwrap_or(rt).trim().to_string());
+        let is_interface_call = receiver_type_clean
+            .as_ref()
+            .and_then(|clean| java_index.map(|idx| idx.is_interface(clean)))
+            .unwrap_or(false);
+        let is_recursive =
+            callee.path == original_file && callee.callee == original_symbol && !is_interface_call;
+
         let callee_item = CalleeItem {
             path: callee.path.clone(),
             line: callee.line,
@@ -638,11 +737,12 @@ fn trace_callees_recursive(
             snippet: callee.snippet,
             depth: current_depth as u32 + 1,
             call_chain: vec![],
+            recursive: is_recursive,
         };
 
-        results.push(callee_item);
+        results.push(callee_item.clone());
 
-        // Recursively trace callees from referenced files
+        // Step 3: RECURSION - trace into implementations
         // Callee paths are relative to the file they were found in, so resolve them
         let callee_file_path = if std::path::Path::new(&callee.path).is_absolute() {
             std::path::PathBuf::from(&callee.path)
@@ -657,7 +757,6 @@ fn trace_callees_recursive(
         // Check if the callee's receiver type is an interface and trace implementations
         let mut traced_interfaces = false;
         if let (Some(index), Some(receiver_type)) = (java_index, &callee.receiver_type) {
-            // Clean up the receiver type (remove generics, etc.)
             let clean_type = receiver_type
                 .split('<')
                 .next()
@@ -667,21 +766,12 @@ fn trace_callees_recursive(
             if index.is_interface(clean_type) {
                 // Find implementations of this interface
                 let implementations = index.find_implementations(clean_type);
-                eprintln!(
-                    "DEBUG: Receiver '{}' is an interface with {} implementations",
-                    clean_type,
-                    implementations.len()
-                );
 
                 if !implementations.is_empty() {
                     traced_interfaces = true;
 
                     // Trace each implementation
                     for impl_path in &implementations {
-                        eprintln!(
-                            "DEBUG: Tracing implementation '{}' for interface '{}'",
-                            impl_path, clean_type
-                        );
                         trace_callees_recursive(
                             workspace_root,
                             impl_path,
@@ -691,6 +781,8 @@ fn trace_callees_recursive(
                             visited,
                             results,
                             Some(index),
+                            original_file,
+                            original_symbol,
                         );
                     }
                 }
@@ -710,6 +802,8 @@ fn trace_callees_recursive(
                 visited,
                 results,
                 java_index,
+                original_file,
+                original_symbol,
             );
         }
     }

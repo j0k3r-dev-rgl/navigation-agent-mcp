@@ -2,7 +2,9 @@ use std::path::Path;
 
 use navigation_engine::analyzers::java::JavaAnalyzer;
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
-use navigation_engine::analyzers::{FindCallersQuery, FindEndpointsQuery, FindSymbolQuery};
+use navigation_engine::analyzers::{
+    FindCalleesQuery, FindCallersQuery, FindEndpointsQuery, FindSymbolQuery,
+};
 
 fn any_symbol_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -418,5 +420,444 @@ public class NavigationController {
     assert_eq!(
         items[0].probable_entry_point_reasons,
         vec!["public controller method"]
+    );
+}
+
+// ============================================================================
+// CalleeFilter Tests - Iteration 1 (Basic Filtering)
+// ============================================================================
+
+fn callees_query(target_symbol: &str) -> FindCalleesQuery {
+    FindCalleesQuery {
+        target_symbol: target_symbol.to_string(),
+        source_path: Path::new("src/main/java/com/example/Test.java").to_path_buf(),
+    }
+}
+
+// === Object Method Filtering Tests ===
+
+#[test]
+fn filters_object_methods_to_string_equals_hashcode() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class ExampleService {
+    public void process(String input) {
+        input.toString();
+        input.equals("test");
+        input.hashCode();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/ExampleService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"toString"),
+        "toString should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"equals"),
+        "equals should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"hashCode"),
+        "hashCode should be filtered"
+    );
+}
+
+#[test]
+fn filters_object_methods_getclass_clone_notify() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class ExampleService {
+    public void process(Object obj) {
+        obj.getClass();
+        obj.clone();
+        obj.notify();
+        obj.notifyAll();
+        obj.wait();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/ExampleService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"getClass"),
+        "getClass should be filtered"
+    );
+    assert!(!callee_names.contains(&"clone"), "clone should be filtered");
+    assert!(
+        !callee_names.contains(&"notify"),
+        "notify should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"notifyAll"),
+        "notifyAll should be filtered"
+    );
+    assert!(!callee_names.contains(&"wait"), "wait should be filtered");
+}
+
+// === Constructor Preservation Tests ===
+
+#[test]
+fn preserves_constructors() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class ExampleService {
+    public void create() {
+        new TitularModel();
+        new ResponseEntity<>();
+        new java.util.ArrayList<>();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/ExampleService.java"),
+        source,
+        &callees_query("create"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    // Note: Constructor names include generic syntax (<>) when present
+    assert!(
+        callee_names.contains(&"TitularModel"),
+        "Project constructor should be preserved"
+    );
+    assert!(
+        callee_names.contains(&"ResponseEntity<>"),
+        "Spring constructor should be preserved"
+    );
+    assert!(
+        callee_names.contains(&"java.util.ArrayList<>"),
+        "Java constructor should be preserved"
+    );
+}
+
+// === Package Filtering Tests ===
+
+#[test]
+fn filters_java_lang_methods() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class ExampleService {
+    private String field;
+
+    public void process() {
+        field.length();
+        field.substring(0, 5);
+        field.trim();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/ExampleService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"length"),
+        "String.length should be filtered (java.lang)"
+    );
+    assert!(
+        !callee_names.contains(&"substring"),
+        "String.substring should be filtered (java.lang)"
+    );
+    assert!(
+        !callee_names.contains(&"trim"),
+        "String.trim should be filtered (java.lang)"
+    );
+}
+
+#[test]
+fn filters_java_util_methods() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+import java.util.List;
+import java.util.Map;
+
+public class ExampleService {
+    public void process() {
+        List.of(1, 2, 3);
+        Map.of("a", 1);
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/ExampleService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"of"),
+        "List.of/Map.of should be filtered (java.util)"
+    );
+}
+
+// === Port Allowlist Tests ===
+
+#[test]
+fn preserves_port_methods() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class TitularService {
+    private GetTitularByIdPort getTitularByIdPort;
+    private EditTitularPort editTitularPort;
+
+    public void process() {
+        getTitularByIdPort.execute("123");
+        editTitularPort.execute(new EditTitularRequest());
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/TitularService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        callee_names.contains(&"execute"),
+        "Port.execute should be preserved"
+    );
+}
+
+// === Model Getter/Setter Filtering Tests ===
+
+#[test]
+fn filters_getters_on_model_types() {
+    let analyzer = JavaAnalyzer;
+    // Note: Using class field instead of method parameter (parameters not tracked in Iteration 1)
+    let source = r#"
+package com.example;
+
+public class TitularService {
+    private TitularPersistenceModel model;
+
+    public void process() {
+        model.getNames();
+        model.getSurnames();
+        model.getEmail();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/TitularService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"getNames"),
+        "Model getter should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"getSurnames"),
+        "Model getter should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"getEmail"),
+        "Model getter should be filtered"
+    );
+}
+
+#[test]
+fn filters_setters_on_model_types() {
+    let analyzer = JavaAnalyzer;
+    // Note: Using class field instead of method parameter (parameters not tracked in Iteration 1)
+    let source = r#"
+package com.example;
+
+public class TitularService {
+    private TitularPersistenceModel model;
+
+    public void process() {
+        model.setNames("Juan");
+        model.setSurnames("Perez");
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/TitularService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        !callee_names.contains(&"setNames"),
+        "Model setter should be filtered"
+    );
+    assert!(
+        !callee_names.contains(&"setSurnames"),
+        "Model setter should be filtered"
+    );
+}
+
+#[test]
+fn preserves_getters_on_non_model_types() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+public class TitularService {
+    private GetTitularByIdService getTitularService;
+
+    public void process() {
+        getTitularService.getTitularById("123");
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/TitularService.java"),
+        source,
+        &callees_query("process"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    assert!(
+        callee_names.contains(&"getTitularById"),
+        "Service getter should be preserved"
+    );
+}
+
+// === Spring Framework Filtering Tests ===
+
+#[test]
+fn filters_spring_internal_calls() {
+    let analyzer = JavaAnalyzer;
+    let source = r#"
+package com.example;
+
+import org.springframework.http.ResponseEntity;
+
+public class TitularRestController {
+    public ResponseEntity<TitularResponse> create() {
+        return ResponseEntity.ok(new TitularResponse());
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/TitularRestController.java"),
+        source,
+        &callees_query("create"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    // ResponseEntity.ok should be filtered (org.springframework)
+    assert!(
+        !callee_names.contains(&"ok"),
+        "ResponseEntity.ok should be filtered"
+    );
+    // But the constructor should be preserved
+    assert!(
+        callee_names.contains(&"TitularResponse"),
+        "Project constructor should be preserved"
+    );
+}
+
+// === Integration Tests ===
+
+#[test]
+fn filters_noise_in_realistic_service_method() {
+    let analyzer = JavaAnalyzer;
+    // Note: This test focuses on Iteration 1 capabilities:
+    // - Class field type resolution (not method parameters)
+    // - Object method filtering, java.util filtering, Port preservation
+    // Builder chain tracking is Iteration 2
+    let source = r#"
+package com.example.modules.titular.application.use_cases;
+
+import java.util.List;
+
+public class CreateTitularUseCase {
+    private EditTitularPort editTitularPort;
+    private TitularMapper titularMapper;
+    private TitularModel model;
+
+    public TitularResponse execute() {
+        // Project calls should be preserved
+        TitularResult result = editTitularPort.execute(model);
+
+        // Java utils should be filtered
+        List<TitularResponse> list = List.of();
+
+        // Object methods should be filtered
+        model.toString();
+
+        return titularMapper.toResponse(result);
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/main/java/com/example/modules/titular/application/use_cases/CreateTitularUseCase.java"),
+        source,
+        &callees_query("execute"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+
+    // Should be filtered:
+    assert!(
+        !callee_names.contains(&"toString"),
+        "Object.toString should be filtered"
+    );
+    assert!(!callee_names.contains(&"of"), "List.of should be filtered");
+
+    // Should be preserved:
+    assert!(
+        callee_names.contains(&"execute"),
+        "Port.execute should be preserved"
+    );
+    assert!(
+        callee_names.contains(&"toResponse"),
+        "Mapper.toResponse should be preserved"
     );
 }

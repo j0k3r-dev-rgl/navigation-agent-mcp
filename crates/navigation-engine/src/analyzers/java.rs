@@ -11,6 +11,7 @@ use super::types::{
 };
 
 /// Context information about a Java file used for filtering callees
+#[derive(Clone)]
 struct JavaFileContext {
     /// Package declaration of the file (e.g., "com.sistemasias.ar.modules.titular")
     package_name: String,
@@ -126,6 +127,242 @@ impl JavaFileContext {
 
         // Unknown receiver, assume it might be project code
         true
+    }
+}
+
+/// Filter for reducing noise in callee extraction.
+///
+/// Evaluates each callee against rules in priority order:
+/// 1. Constructor preservation (always include object_creation_expression)
+/// 2. Object method filtering (toString, equals, hashCode, etc.)
+/// 3. Exception allowlist (Port types, project types)
+/// 4. Package-based filtering (java.*, jakarta.*, javax.*, org.springframework.*)
+/// 5. Model getter/setter filtering
+/// 6. Default include
+///
+/// For Iteration 1: Basic filtering without builder chain tracking
+struct CalleeFilter {
+    /// Reference to file context for type resolution
+    file_context: JavaFileContext,
+}
+
+impl CalleeFilter {
+    /// Create a new filter with file context
+    fn new(file_context: JavaFileContext) -> Self {
+        Self { file_context }
+    }
+
+    /// Determine if a callee should be included in results.
+    ///
+    /// Priority order (from spec):
+    /// 1. Constructor Preservation
+    /// 2. Object Method Filtering
+    /// 3. Exception Allowlist (Ports, project types)
+    /// 4. Package-Based Filtering
+    /// 5. Model Getter/Setter Filtering
+    /// 6. Default: Include
+    ///
+    /// # Arguments
+    /// * `callee_name` - The method name being called
+    /// * `receiver_name` - Optional name of the receiver (variable/field name)
+    /// * `receiver_type` - Optional resolved type of the receiver
+    /// * `is_constructor` - Whether this is an object_creation_expression
+    fn should_include(
+        &self,
+        callee_name: &str,
+        receiver_name: Option<&str>,
+        receiver_type: Option<&str>,
+        is_constructor: bool,
+    ) -> bool {
+        // === PRIORITY 1: Constructor Preservation ===
+        if is_constructor {
+            return true;
+        }
+
+        // === PRIORITY 2: Object Method Filtering ===
+        if Self::is_object_method(callee_name) {
+            return false;
+        }
+
+        // === PRIORITY 3: Exception Allowlist ===
+        // Port types are always included (business interfaces)
+        if let Some(rtype) = receiver_type {
+            if rtype.ends_with("Port") || rtype.contains("Port<") {
+                return true;
+            }
+        }
+
+        // Project types are generally included (but check for getters/setters later)
+        let is_project_type = if let Some(ref recv) = receiver_name {
+            self.file_context.is_callee_from_project(Some(recv))
+        } else {
+            // No receiver - could be static import or same-class method
+            // Conservatively treat as potentially project code
+            true
+        };
+
+        // === PRIORITY 4: Package-Based Filtering ===
+        // Resolve the type to its fully qualified name using imports
+        let resolved_type = receiver_type.map(|rt| {
+            // If already fully qualified, use as-is
+            if rt.contains('.') {
+                rt.to_string()
+            } else {
+                // Look up in imports
+                self.file_context
+                    .imports
+                    .get(rt)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        // Common java.lang types are implicitly imported
+                        // Check if it's a known java.lang type
+                        if Self::is_java_lang_type(rt) {
+                            format!("java.lang.{}", rt)
+                        } else {
+                            rt.to_string()
+                        }
+                    })
+            }
+        });
+
+        if let Some(ref rtype) = resolved_type {
+            // java.*, jakarta.* always filtered
+            if rtype.starts_with("java.") || rtype.starts_with("jakarta.") {
+                return false;
+            }
+            // javax.* filtered
+            if rtype.starts_with("javax.") {
+                return false;
+            }
+            // org.springframework.* filtered except Ports (already checked above)
+            if rtype.starts_with("org.springframework.") {
+                return false;
+            }
+        }
+
+        // === PRIORITY 5: Model Getter/Setter Filtering ===
+        // Only filter getters/setters on model types, not on business types
+        if Self::is_getter_setter(callee_name) {
+            // If it's a project type, check if it's a model type
+            if is_project_type {
+                if self.is_model_type(receiver_type) {
+                    return false;
+                }
+            }
+        }
+
+        // === PRIORITY 6: Noise Receiver Type Filtering ===
+        // Filter out calls where receiver_type is clearly not a type:
+        // - Builder chain expressions: "Type.builder()..." or "Type.builder().method()..."
+        // - Variable names (lowercase, no package dots): "memberSaved", "rootData"
+        if Self::is_noise_receiver_type(receiver_type) {
+            return false;
+        }
+
+        // === DEFAULT: Include ===
+        true
+    }
+
+    /// Check if method name is a standard Object method
+    fn is_object_method(name: &str) -> bool {
+        matches!(
+            name,
+            "toString"
+                | "equals"
+                | "hashCode"
+                | "getClass"
+                | "clone"
+                | "notify"
+                | "notifyAll"
+                | "wait"
+        )
+    }
+
+    /// Check if method name matches getter or setter pattern
+    fn is_getter_setter(name: &str) -> bool {
+        (name.starts_with("get")
+            && name.len() > 3
+            && name.chars().nth(3).map_or(false, |c| c.is_uppercase()))
+            || (name.starts_with("is")
+                && name.len() > 2
+                && name.chars().nth(2).map_or(false, |c| c.is_uppercase()))
+            || (name.starts_with("set")
+                && name.len() > 3
+                && name.chars().nth(3).map_or(false, |c| c.is_uppercase()))
+    }
+
+    /// Check if a type name is from java.lang (implicitly imported)
+    fn is_java_lang_type(name: &str) -> bool {
+        matches!(
+            name,
+            "String"
+                | "Object"
+                | "Integer"
+                | "Long"
+                | "Double"
+                | "Float"
+                | "Boolean"
+                | "Byte"
+                | "Short"
+                | "Character"
+                | "System"
+                | "Math"
+                | "StringBuilder"
+                | "StringBuffer"
+                | "Exception"
+                | "RuntimeException"
+                | "Throwable"
+                | "Class"
+                | "Enum"
+        )
+    }
+
+    /// Check if a type is a model/persistence type based on naming patterns
+    fn is_model_type(&self, receiver_type: Option<&str>) -> bool {
+        match receiver_type {
+            Some(rtype) => {
+                // Remove generic parameters if present
+                let base = rtype.split('<').next().unwrap_or(rtype);
+                // Get the simple name (last segment)
+                let name = base.split('.').last().unwrap_or(base);
+
+                // Name-based heuristics for model types
+                name.ends_with("PersistenceModel")
+                    || name.ends_with("Entity")
+                    || (name.ends_with("Model") && !name.ends_with("ViewModel"))
+                    || name.ends_with("DTO")
+                    || name.ends_with("Request")
+                    || name.ends_with("Response")
+            }
+            None => false,
+        }
+    }
+
+    /// Check if receiver_type is "garbage" - not a proper type.
+    /// This catches:
+    /// - Builder chain expressions like "TitularPersistenceModel.builder()..."
+    /// - Variable names that aren't types (lowercase start, no dots)
+    /// - Other non-type expressions
+    fn is_noise_receiver_type(receiver_type: Option<&str>) -> bool {
+        match receiver_type {
+            Some(rtype) => {
+                // If it contains builder chain pattern, it's noise
+                if rtype.contains(".builder(") || rtype.contains(".build(") {
+                    return true;
+                }
+                // If it looks like a builder chain continuation (multiple dots with method calls)
+                if rtype.contains(").") && rtype.chars().any(|c| c == '(' || c == ')') {
+                    return true;
+                }
+                // If it's a simple name (no dots) and starts with lowercase, it's likely a variable
+                if !rtype.contains('.') && rtype.chars().next().map_or(false, |c| c.is_lowercase())
+                {
+                    return true;
+                }
+                false
+            }
+            None => false,
+        }
     }
 }
 
@@ -268,18 +505,24 @@ impl LanguageAnalyzer for JavaAnalyzer {
 
         let public_language = infer_public_language(path);
         let mut callees = Vec::new();
-        let ctx = JavaCalleeContext {
+
+        // Create filter from file context
+        let callee_filter = Some(CalleeFilter::new(file_ctx.clone()));
+
+        let mut ctx = JavaCalleeContext {
             target_symbol: &query.target_symbol,
             current_file: path,
             public_language: public_language.as_deref(),
             file_context: Some(file_ctx),
+            callee_filter,
+            active_builder_chains: HashMap::new(),
         };
 
         collect_java_callees(
             tree.root_node(),
             source.as_bytes(),
             None,
-            &ctx,
+            &mut ctx,
             &mut callees,
         );
 
@@ -763,6 +1006,11 @@ struct JavaCalleeContext<'a> {
     current_file: &'a Path,
     public_language: Option<&'a str>,
     file_context: Option<JavaFileContext>,
+    /// Optional filter for reducing noise in callee extraction
+    callee_filter: Option<CalleeFilter>,
+    /// Tracks active builder chains: receiver variable name -> builder type name
+    /// Used to filter chained builder method calls (builder(), field(), build())
+    active_builder_chains: HashMap<String, String>,
 }
 
 #[derive(Clone)]
@@ -775,7 +1023,7 @@ fn collect_java_callees(
     node: Node,
     source: &[u8],
     current_function: Option<JavaFunctionContext>,
-    ctx: &JavaCalleeContext,
+    ctx: &mut JavaCalleeContext,
     callees: &mut Vec<CalleeDefinition>,
 ) {
     // Check if this node is a method declaration we're looking for
@@ -793,16 +1041,6 @@ fn collect_java_callees(
                 found
             })
             .unwrap_or(false);
-
-    // Debug: show what nodes we're visiting
-    if current_function.is_some() || is_target_method {
-        eprintln!(
-            "DEBUG: visiting {} node, is_target_method={}, current_function.is_some()={}",
-            node_kind,
-            is_target_method,
-            current_function.is_some()
-        );
-    }
 
     // Check if this node is a class declaration - update class context
     let next_class_name =
@@ -840,13 +1078,83 @@ fn collect_java_callees(
     // If we're inside the target method, look for method invocations
     if is_target_method || current_function.is_some() {
         if node.kind() == "method_invocation" {
+            // Extract receiver name from file context
+            let receiver_name = node
+                .child_by_field_name("object")
+                .and_then(|n| java_node_text(n, source));
+
+            // Extract receiver type from file context if available
+            let receiver_type = receiver_name.as_ref().and_then(|recv| {
+                ctx.file_context
+                    .as_ref()
+                    .and_then(|fc| fc.class_fields.get(recv).cloned())
+            });
+
+            // Extract callee name for builder chain detection
+            let callee_name = node
+                .child_by_field_name("name")
+                .and_then(|n| java_node_text(n, source));
+
+            // --- Builder Chain Tracking ---
+            let mut is_builder_chain_call = false;
+            if let (Some(recv), Some(name)) = (receiver_name.as_ref(), callee_name.as_ref()) {
+                // Check if receiver is a known builder (chained call)
+                if ctx.active_builder_chains.contains_key(recv) {
+                    is_builder_chain_call = true;
+
+                    // Check if this is .build() - end of chain
+                    if name.as_str() == "build" {
+                        ctx.active_builder_chains.remove(recv);
+                    }
+                }
+
+                // Check if this is .builder() on a model type - start of chain
+                if name.as_str() == "builder" {
+                    // Check if receiver type is a model type
+                    let is_model = receiver_type.as_ref().map_or(false, |rt| {
+                        let base = rt.split('<').next().unwrap_or(rt);
+                        let type_name = base.split('.').last().unwrap_or(base);
+                        type_name.ends_with("Builder")
+                            || type_name.ends_with("PersistenceModel")
+                            || type_name.ends_with("Entity")
+                            || (type_name.ends_with("Model") && !type_name.ends_with("ViewModel"))
+                            || type_name.ends_with("DTO")
+                    });
+
+                    if is_model {
+                        // Generate a unique identifier for this builder chain
+                        // Use the receiver variable name or generate one
+                        let chain_id = format!("{}_builder_{}", recv, node.start_position().row);
+                        ctx.active_builder_chains.insert(chain_id, (*recv).clone());
+                    }
+                }
+            }
+
             if let Some(callee) = extract_java_callee(node, source, ctx, &current_function) {
-                callees.push(callee);
+                // Skip chained builder calls (but not the initial .builder() or final .build())
+                if is_builder_chain_call && callee.callee != "build" {
+                    // This is a chained call on a builder - skip it
+                } else {
+                    // Apply filter if available
+                    let should_include = ctx.callee_filter.as_ref().map_or(true, |filter| {
+                        filter.should_include(
+                            &callee.callee,
+                            receiver_name.as_deref(),
+                            callee.receiver_type.as_deref().or(receiver_type.as_deref()),
+                            false, // is_constructor = false
+                        )
+                    });
+
+                    if should_include {
+                        callees.push(callee);
+                    }
+                }
             }
         }
         // Also check for constructor calls (new Object())
         if node.kind() == "object_creation_expression" {
             if let Some(callee) = extract_java_callee(node, source, ctx, &current_function) {
+                // Constructors are always included (Priority 1)
                 callees.push(callee);
             }
         }
@@ -886,12 +1194,8 @@ fn extract_java_callee(
         _ => return None,
     };
 
-    // Filter out external library calls if we have file context
-    if let Some(ref file_ctx) = ctx.file_context {
-        if !file_ctx.is_callee_from_project(receiver_name.as_deref()) {
-            return None;
-        }
-    }
+    // NOTE: No filtering here - we return ALL callees
+    // Filtering will be done in trace_flow using the global project index
 
     // Get end line for the call
     let end_line = (node.end_position().row + 1) as u32;

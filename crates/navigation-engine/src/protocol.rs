@@ -225,6 +225,8 @@ pub struct CalleeItem {
     pub snippet: Option<String>,
     pub depth: u32,
     pub call_chain: Vec<String>,
+    #[serde(default)]
+    pub recursive: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
