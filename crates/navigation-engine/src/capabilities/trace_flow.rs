@@ -592,15 +592,60 @@ pub fn trace_flow(
         &payload.symbol,
     );
 
-    // Dedupe callees by path and line
-    let unique_callees: Vec<CalleeItem> = all_callees
-        .into_iter()
-        .fold(BTreeMap::new(), |mut acc, callee| {
-            let key = (callee.path.clone(), callee.line, callee.callee.clone());
-            acc.entry(key).or_insert(callee);
-            acc
-        })
+    // Group callees by (path, callee) to reduce noise
+    // Keep track of count and all line numbers
+    let mut grouped: BTreeMap<(String, String, u32), (CalleeItem, usize, Vec<u32>)> =
+        BTreeMap::new();
+    for callee in all_callees {
+        let key = (callee.path.clone(), callee.callee.clone(), callee.depth);
+        let entry = grouped
+            .entry(key)
+            .or_insert_with(|| (callee.clone(), 0, Vec::new()));
+        entry.1 += 1; // increment count
+        if !entry.2.contains(&callee.line) {
+            entry.2.push(callee.line); // add unique line
+        }
+    }
+
+    // Build grouped callees with count info in snippet
+    let unique_callees: Vec<CalleeItem> = grouped
         .into_values()
+        .map(|(mut callee, count, mut lines)| {
+            lines.sort();
+            let lines_str = if lines.len() > 3 {
+                format!(
+                    "{} lines: {}, ...",
+                    count,
+                    lines[..3]
+                        .iter()
+                        .map(|l| l.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            } else {
+                format!(
+                    "{} lines: {}",
+                    count,
+                    lines
+                        .iter()
+                        .map(|l| l.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            callee.snippet = Some(format!(
+                "{} [called {} time(s)]",
+                callee
+                    .snippet
+                    .unwrap_or_default()
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim(),
+                count
+            ));
+            callee
+        })
         .collect();
 
     let items = unique_callees
