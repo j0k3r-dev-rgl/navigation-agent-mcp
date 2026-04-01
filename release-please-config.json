@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "ae09d1a44041f7613c6cc5a35ea66d1a3eb6a204",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "navigation-agent-mcp",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}
