@@ -8,9 +8,13 @@ MCP server for code navigation and repository inspection. Gives any AI coding ag
 
 ## Installation
 
-The server runs via `npx` — no global install needed. You only need **Node.js 24+** and **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`) on your system.
+The server runs via `npx` — no global install needed.
 
-### Install ripgrep
+### Requirements
+- **Node.js 18+** (you only need this to run `npx`)
+- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`) — **optional**, only needed if you use the `workspace.search_text` tool
+
+### Install ripgrep (optional)
 
 | OS | Command |
 |---|---|
