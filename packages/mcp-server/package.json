@@ -22,11 +22,11 @@
     "check": "tsc --noEmit"
   },
   "optionalDependencies": {
-    "@navigation-agent/mcp-server-linux-x64": "0.2.1",
-    "@navigation-agent/mcp-server-linux-arm64": "0.2.1",
-    "@navigation-agent/mcp-server-darwin-x64": "0.2.1",
-    "@navigation-agent/mcp-server-darwin-arm64": "0.2.1",
-    "@navigation-agent/mcp-server-win32-x64": "0.2.1"
+    "@navigation-agent/mcp-server-linux-x64": "0.3.0",
+    "@navigation-agent/mcp-server-linux-arm64": "0.3.0",
+    "@navigation-agent/mcp-server-darwin-x64": "0.3.0",
+    "@navigation-agent/mcp-server-darwin-arm64": "0.3.0",
+    "@navigation-agent/mcp-server-win32-x64": "0.3.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
