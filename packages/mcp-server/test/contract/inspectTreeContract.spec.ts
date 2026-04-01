@@ -49,7 +49,7 @@ test("stdio runtime lists tools and returns migrated inspect_tree responses", as
       new Set([
         "code.find_symbol",
         "code.search_text",
-        "code.trace_symbol",
+        "code.trace_flow",
         "code.trace_callers",
         "code.list_endpoints",
         "code.inspect_tree",

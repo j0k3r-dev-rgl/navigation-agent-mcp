@@ -127,6 +127,7 @@ fn map_symbol_item(item: SymbolDefinition) -> FindSymbolItem {
         kind: item.kind,
         path: item.path,
         line: item.line,
+        line_end: item.line_end,
         language: item.language,
     }
 }

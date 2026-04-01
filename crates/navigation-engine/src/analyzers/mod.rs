@@ -8,6 +8,6 @@ pub mod typescript;
 
 pub use registry::AnalyzerRegistry;
 pub use types::{
-    AnalyzerLanguage, CallerDefinition, EndpointDefinition, FindCallersQuery, FindEndpointsQuery,
-    FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
+    FindCallersQuery, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
 };

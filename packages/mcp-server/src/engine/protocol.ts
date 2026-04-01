@@ -11,7 +11,7 @@ export const ENGINE_CAPABILITIES = [
   "workspace.find_symbol",
   "workspace.list_endpoints",
   "workspace.search_text",
-  "workspace.trace_symbol",
+  "workspace.trace_flow",
   "workspace.trace_callers",
 ] as const;
 export type EngineCapability = (typeof ENGINE_CAPABILITIES)[number];
@@ -80,6 +80,7 @@ export interface FindSymbolEngineItem {
   kind: PublicSymbolKind;
   path: string;
   line: number;
+  lineEnd: number;
   language: PublicLanguage | null;
 }
 
@@ -167,21 +168,35 @@ export interface SearchTextEngineResult {
   truncated: boolean;
 }
 
-export interface TraceSymbolEnginePayload {
+export interface TraceFlowEnginePayload {
   path: string;
   symbol: string;
   analyzerLanguage: AnalyzerLanguage;
   publicLanguageFilter: PublicLanguage | null;
 }
 
-export interface TraceSymbolEngineItem {
+export interface TraceFlowEngineItem {
   path: string;
   language: PublicLanguage | null;
 }
 
-export interface TraceSymbolEngineResult {
+export interface TraceFlowEngineCallee {
+  path: string;
+  line: number;
+  endLine: number;
+  column: number | null;
+  callee: string;
+  calleeSymbol: string | null;
+  relation: string;
+  language: PublicLanguage | null;
+  snippet: string | null;
+  depth: number;
+}
+
+export interface TraceFlowEngineResult {
   resolvedPath: string | null;
-  items: TraceSymbolEngineItem[];
+  items: TraceFlowEngineItem[];
+  callees: TraceFlowEngineCallee[];
   totalMatched: number;
   truncated: boolean;
 }

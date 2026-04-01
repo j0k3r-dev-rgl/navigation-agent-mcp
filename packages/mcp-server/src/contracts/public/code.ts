@@ -28,7 +28,7 @@ export const CODE_TOOL_NAMES = [
   "code.list_endpoints",
   "code.find_symbol",
   "code.search_text",
-  "code.trace_symbol",
+  "code.trace_flow",
   "code.trace_callers",
 ] as const;
 
@@ -79,6 +79,7 @@ export interface PublicSymbolDefinition {
   kind: PublicSymbolKind;
   path: string;
   line: number;
+  lineEnd: number;
   language: PublicLanguage | null;
 }
 
@@ -165,28 +166,42 @@ export interface SearchTextData {
   items: SearchTextFileMatch[];
 }
 
-export interface TraceSymbolInput {
+export interface TraceFlowInput {
   path: string;
   symbol: string;
   language?: PublicLanguage | null;
   framework?: PublicFramework | null;
 }
 
-export interface TraceSymbolEntrypoint {
+export interface TraceFlowEntrypoint {
   path: string;
   symbol: string;
   language: PublicLanguage | null;
 }
 
-export interface TraceSymbolFile {
+export interface TraceFlowFile {
   path: string;
   language: PublicLanguage | null;
 }
 
-export interface TraceSymbolData {
-  entrypoint: TraceSymbolEntrypoint;
+export interface TraceFlowCallee {
+  path: string;
+  line: number;
+  endLine: number;
+  column: number | null;
+  callee: string;
+  calleeSymbol: string | null;
+  relation: string;
+  language: PublicLanguage | null;
+  snippet: string | null;
+  depth: number;
+}
+
+export interface TraceFlowData {
+  entrypoint: TraceFlowEntrypoint;
   fileCount: number;
-  items: TraceSymbolFile[];
+  items: TraceFlowFile[];
+  callees: TraceFlowCallee[];
 }
 
 export interface TraceCallersInput {
@@ -526,7 +541,7 @@ export const searchTextInputSchema = {
   $defs: sharedDefs,
 } as const;
 
-export const traceSymbolInputSchema = {
+export const traceFlowInputSchema = {
   type: "object",
   properties: {
     path: { type: "string", minLength: 1 },
@@ -584,7 +599,7 @@ export const codeToolSchemas = {
   "code.list_endpoints": listEndpointsInputSchema,
   "code.find_symbol": findSymbolInputSchema,
   "code.search_text": searchTextInputSchema,
-  "code.trace_symbol": traceSymbolInputSchema,
+  "code.trace_flow": traceFlowInputSchema,
   "code.trace_callers": traceCallersInputSchema,
 } as const;
 
@@ -755,9 +770,9 @@ export function normalizeSearchTextInput(
   };
 }
 
-export function normalizeTraceSymbolInput(
+export function normalizeTraceFlowInput(
   payload: Record<string, unknown>,
-): { ok: true; value: TraceSymbolInput } | { ok: false; issues: ValidationIssue[] } {
+): { ok: true; value: TraceFlowInput } | { ok: false; issues: ValidationIssue[] } {
   const issues: ValidationIssue[] = [];
 
   const scopedPath = normalizeRequiredTrimmedString(payload.path, "path", issues);

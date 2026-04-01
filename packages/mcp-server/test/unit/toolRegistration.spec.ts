@@ -38,7 +38,7 @@ class MockEngineClient implements EngineClient {
       };
     }
 
-    if (request.capability === "workspace.trace_symbol") {
+    if (request.capability === "workspace.trace_flow") {
       return {
         id: "req-1",
         ok: true as const,
@@ -50,6 +50,7 @@ class MockEngineClient implements EngineClient {
               language: "typescript",
             },
           ],
+          callees: [],
           totalMatched: 1,
           truncated: false,
         },
@@ -110,7 +111,7 @@ test("registers the stable six code tools with expected schema defaults", () => 
   assert.deepEqual(new Set(Object.keys(toolsByName)), new Set([
     "code.find_symbol",
     "code.search_text",
-    "code.trace_symbol",
+    "code.trace_flow",
     "code.trace_callers",
     "code.list_endpoints",
     "code.inspect_tree",
@@ -126,7 +127,7 @@ test("registers the stable six code tools with expected schema defaults", () => 
   );
   assert.deepEqual(toolsByName["code.find_symbol"].inputSchema.required, ["symbol"]);
   assert.ok("MatchMode" in (toolsByName["code.find_symbol"].inputSchema.$defs as Record<string, unknown>));
-  assert.deepEqual(new Set(toolsByName["code.trace_symbol"].inputSchema.required), new Set(["path", "symbol"]));
+  assert.deepEqual(new Set(toolsByName["code.trace_flow"].inputSchema.required), new Set(["path", "symbol"]));
 
   const maxDepthSchema = ((toolsByName["code.trace_callers"].inputSchema.properties as Record<string, { anyOf: Array<Record<string, unknown>> }>).max_depth.anyOf[0]);
   assert.equal(maxDepthSchema.minimum, 1);
@@ -155,12 +156,12 @@ test("migrated and compatibility tools route through the expected backend", asyn
   assert.equal((findSymbolResult as { tool: string }).tool, "code.find_symbol");
   assert.equal(engineClient.requests[1]?.capability, "workspace.find_symbol");
 
-  const traceResult = await server.callTool("code.trace_symbol", {
+  const traceResult = await server.callTool("code.trace_flow", {
     path: "src/index.ts",
     symbol: "loader",
   });
-  assert.equal((traceResult as { tool: string }).tool, "code.trace_symbol");
-  assert.equal(engineClient.requests[2]?.capability, "workspace.trace_symbol");
+  assert.equal((traceResult as { tool: string }).tool, "code.trace_flow");
+  assert.equal(engineClient.requests[2]?.capability, "workspace.trace_flow");
 
   const callerTraceResult = await server.callTool("code.trace_callers", {
     path: "src/index.ts",

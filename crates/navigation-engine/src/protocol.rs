@@ -72,6 +72,7 @@ pub struct FindSymbolItem {
     pub kind: String,
     pub path: String,
     pub line: u32,
+    pub line_end: u32,
     pub language: Option<String>,
 }
 
@@ -183,11 +184,14 @@ pub struct SearchTextResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceSymbolRequestPayload {
+pub struct TraceFlowRequestPayload {
     pub path: String,
     pub symbol: String,
     pub analyzer_language: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub public_language_filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -199,11 +203,28 @@ pub struct TraceSymbolItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TraceSymbolResult {
+pub struct TraceFlowResult {
     pub resolved_path: Option<String>,
     pub items: Vec<TraceSymbolItem>,
     pub total_matched: usize,
     pub truncated: bool,
+    pub callees: Vec<CalleeItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalleeItem {
+    pub path: String,
+    pub line: u32,
+    pub end_line: u32,
+    pub column: Option<u32>,
+    pub callee: String,
+    pub callee_symbol: Option<String>,
+    pub relation: String,
+    pub language: Option<String>,
+    pub snippet: Option<String>,
+    pub depth: u32,
+    pub call_chain: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

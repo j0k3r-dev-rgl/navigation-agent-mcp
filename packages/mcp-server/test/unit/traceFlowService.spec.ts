@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createTraceSymbolService } from "../../src/services/traceSymbolService.ts";
+import { createTraceFlowService } from "../../src/services/traceFlowService.ts";
 import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
 
 class MockEngineClient implements EngineClient {
@@ -20,7 +20,7 @@ class MockEngineClient implements EngineClient {
   async close() {}
 }
 
-test("traceSymbolService shapes requests for the engine and preserves the public envelope", async () => {
+test("traceFlowService shapes requests for the engine and preserves the public envelope", async () => {
   const engineClient = new MockEngineClient({
     id: "req-1",
     ok: true,
@@ -30,11 +30,25 @@ test("traceSymbolService shapes requests for the engine and preserves the public
         { path: "back/src/main/java/com/acme/HomeController.java", language: "java" },
         { path: "src/routes/dashboard.tsx", language: "typescript" },
       ],
+      callees: [
+        {
+          path: "src/shared/api.ts",
+          line: 10,
+          endLine: 15,
+          column: 5,
+          callee: "fetchData",
+          calleeSymbol: "fetchData",
+          relation: "calls",
+          language: "typescript",
+          snippet: "fetchData()",
+          depth: 1,
+        },
+      ],
       totalMatched: 2,
       truncated: false,
     },
   });
-  const service = createTraceSymbolService({
+  const service = createTraceFlowService({
     workspaceRoot: "/workspace",
     engineClient,
   });
@@ -48,7 +62,7 @@ test("traceSymbolService shapes requests for the engine and preserves the public
   assert.deepEqual(engineClient.requests, [
     {
       id: "req-1",
-      capability: "workspace.trace_symbol",
+      capability: "workspace.trace_flow",
       workspaceRoot: "/workspace",
       payload: {
         path: "src/routes/dashboard.tsx",
@@ -59,18 +73,20 @@ test("traceSymbolService shapes requests for the engine and preserves the public
     },
   ]);
   assert.equal(result.status, "ok");
-  assert.equal(result.summary, "Traced 2 related files for 'loader' from 'src/routes/dashboard.tsx'.");
+  assert.equal(result.summary, "Traced 1 callee for 'loader' from 'src/routes/dashboard.tsx'.");
   assert.deepEqual(result.data.entrypoint, {
     path: "src/routes/dashboard.tsx",
     symbol: "loader",
     language: "typescript",
   });
   assert.equal(result.data.fileCount, 2);
+  assert.equal(result.data.callees.length, 1);
+  assert.equal(result.data.callees[0].callee, "fetchData");
   assert.deepEqual(result.meta.counts, { returnedCount: 2, totalMatched: 2 });
 });
 
-test("traceSymbolService maps path and unsupported-capability failures to stable responses", async () => {
-  const missingPathService = createTraceSymbolService({
+test("traceFlowService maps path and unsupported-capability failures to stable responses", async () => {
+  const missingPathService = createTraceFlowService({
     workspaceRoot: "/workspace",
     engineClient: new MockEngineClient({
       id: "req-1",
@@ -92,16 +108,16 @@ test("traceSymbolService maps path and unsupported-capability failures to stable
   assert.equal(missingPathResult.summary, "Path not found.");
   assert.equal(missingPathResult.errors[0]?.code, "FILE_NOT_FOUND");
 
-  const unsupportedService = createTraceSymbolService({
+  const unsupportedService = createTraceFlowService({
     workspaceRoot: "/workspace",
     engineClient: new MockEngineClient({
       id: "req-2",
       ok: false,
       error: {
         code: "UNSUPPORTED_CAPABILITY",
-        message: "Capability 'workspace.trace_symbol' is not implemented yet.",
+        message: "Capability 'workspace.trace_flow' is not implemented yet.",
         retryable: false,
-        details: { capability: "workspace.trace_symbol" },
+        details: { capability: "workspace.trace_flow" },
       },
     }),
   });
@@ -111,6 +127,6 @@ test("traceSymbolService maps path and unsupported-capability failures to stable
     symbol: "loader",
   });
   assert.equal(unsupportedResult.status, "error");
-  assert.equal(unsupportedResult.summary, "Symbol trace failed.");
+  assert.equal(unsupportedResult.summary, "Flow trace failed.");
   assert.equal(unsupportedResult.errors[0]?.code, "BACKEND_EXECUTION_FAILED");
 });

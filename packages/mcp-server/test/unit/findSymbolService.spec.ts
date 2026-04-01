@@ -162,6 +162,7 @@ test("findSymbolService preserves partial summaries and truncation metadata", as
             kind: "function",
             path: "src/routes/a.ts",
             line: 10,
+            lineEnd: 12,
             language: "typescript",
           },
         ],

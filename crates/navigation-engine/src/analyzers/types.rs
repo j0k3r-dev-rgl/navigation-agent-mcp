@@ -35,6 +35,27 @@ pub struct FindCallersQuery {
     pub target_symbol: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct FindCalleesQuery {
+    pub source_path: PathBuf,
+    pub target_symbol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalleeDefinition {
+    pub path: String,
+    pub line: u32,
+    pub end_line: u32,
+    pub column: Option<u32>,
+    pub callee: String,
+    pub callee_symbol: Option<String>,
+    pub receiver_type: Option<String>,
+    pub relation: String,
+    pub language: Option<String>,
+    pub snippet: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolDefinition {
@@ -42,6 +63,7 @@ pub struct SymbolDefinition {
     pub kind: String,
     pub path: String,
     pub line: u32,
+    pub line_end: u32,
     pub language: Option<String>,
 }
 

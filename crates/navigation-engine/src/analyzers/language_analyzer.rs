@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use super::types::{
-    AnalyzerLanguage, CallerDefinition, EndpointDefinition, FindCallersQuery, FindEndpointsQuery,
-    FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
+    FindCallersQuery, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
 };
 
 pub trait LanguageAnalyzer {
@@ -35,6 +35,15 @@ pub trait LanguageAnalyzer {
         _source: &str,
         _query: &FindCallersQuery,
     ) -> Vec<CallerDefinition> {
+        Vec::new()
+    }
+
+    fn find_callees(
+        &self,
+        _path: &Path,
+        _source: &str,
+        _query: &FindCalleesQuery,
+    ) -> Vec<CalleeDefinition> {
         Vec::new()
     }
 

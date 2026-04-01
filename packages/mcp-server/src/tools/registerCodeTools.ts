@@ -11,7 +11,7 @@ import {
   PUBLIC_SYMBOL_KINDS,
   type SearchTextInput,
   type TraceCallersInput,
-  type TraceSymbolInput,
+  type TraceFlowInput,
 } from "../contracts/public/code.ts";
 import type { ResponseEnvelope } from "../contracts/public/common.ts";
 import * as z from "zod/v4";
@@ -41,7 +41,7 @@ export interface RegisterCodeToolsOptions {
   traceCallersHandler?: (
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
-  traceSymbolHandler?: (
+  traceFlowHandler?: (
     payload: Record<string, unknown>,
   ) => Promise<ResponseEnvelope<unknown>>;
 }
@@ -143,11 +143,11 @@ const toolMetadata: Array<
     },
   },
   {
-    name: "code.trace_symbol",
-    title: "Trace symbol forward",
+    name: "code.trace_flow",
+    title: "Trace execution flow forward",
     description:
-      "Trace a symbol forward from a starting file to related workspace files. The starting path must exist inside the workspace.",
-    inputSchema: { ...codeToolSchemas["code.trace_symbol"] },
+      "Trace execution flow forward from a starting file and symbol to related workspace files. The starting path must exist inside the workspace.",
+    inputSchema: { ...codeToolSchemas["code.trace_flow"] },
     sdkInputSchema: {
       path: z.string().trim().min(1),
       symbol: z.string().trim().min(1),
@@ -236,17 +236,17 @@ export function registerCodeTools(
       };
     }
 
-    if (tool.name === "code.trace_symbol") {
+    if (tool.name === "code.trace_flow") {
       return {
         ...tool,
         execute: async (payload) => {
-          if (!options.traceSymbolHandler) {
+          if (!options.traceFlowHandler) {
             throw new Error(
-              "Trace symbol migrated handler is scaffolded but not yet wired.",
+              "Trace flow migrated handler is scaffolded but not yet wired.",
             );
           }
 
-          return options.traceSymbolHandler(payload);
+          return options.traceFlowHandler(payload);
         },
       };
     }

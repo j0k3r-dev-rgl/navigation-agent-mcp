@@ -35,7 +35,7 @@ metadata:
 | Find symbol definitions | `navigation_code_find_symbol` | `read`, `glob` |
 | Search text across code | `navigation_code_search_text` | `read` |
 | List routes / endpoints | `navigation_code_list_endpoints` | `read` |
-| Trace feature flow | `navigation_code_trace_symbol` | `read` |
+| Trace feature flow | `navigation_code_trace_flow` | `read` |
 | Find incoming callers | `navigation_code_trace_callers` | `read` |
 
 ## Tool Reference
@@ -94,9 +94,9 @@ List backend endpoints and frontend routes.
 | `kind` | `string` | `"any"` | Endpoint kind: `any`, `graphql`, `rest`, `route` |
 | `limit` | `integer` | `50` | Maximum results (1-200) |
 
-### navigation_code_trace_symbol
+### navigation_code_trace_flow
 
-Trace a symbol forward from a starting file to related workspace files.
+Trace execution flow forward from a starting file and symbol to related workspace files.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -133,7 +133,7 @@ Need to understand a module's structure?
 ```
 Need controller/use-case flow?
 1. navigation_code_find_symbol to locate the entry point
-2. navigation_code_trace_symbol to follow the chain
+2. navigation_code_trace_flow to follow the chain
 3. read only the traced files you truly need
 ```
 

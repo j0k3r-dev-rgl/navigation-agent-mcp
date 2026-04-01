@@ -1,9 +1,9 @@
 import {
   type PublicFramework,
   type PublicLanguage,
-  type TraceSymbolData,
-  type TraceSymbolInput,
-  normalizeTraceSymbolInput,
+  type TraceFlowData,
+  type TraceFlowInput,
+  normalizeTraceFlowInput,
   type ValidationIssue,
 } from "../contracts/public/code.ts";
 import {
@@ -13,30 +13,30 @@ import {
 import {
   nextRequestId,
   type AnalyzerLanguage,
-  type TraceSymbolEngineResult,
+  type TraceFlowEngineResult,
 } from "../engine/protocol.ts";
 import type { EngineClient } from "../engine/rustEngineClient.ts";
 
-const TOOL_NAME = "code.trace_symbol";
+const TOOL_NAME = "code.trace_flow";
 
-export interface TraceSymbolService {
-  execute(input: TraceSymbolInput): Promise<ResponseEnvelope<TraceSymbolData>>;
+export interface TraceFlowService {
+  execute(input: TraceFlowInput): Promise<ResponseEnvelope<TraceFlowData>>;
   validateAndExecute(
     payload: Record<string, unknown>,
-  ): Promise<ResponseEnvelope<TraceSymbolData>>;
+  ): Promise<ResponseEnvelope<TraceFlowData>>;
 }
 
-export function createTraceSymbolService(options: {
+export function createTraceFlowService(options: {
   workspaceRoot: string;
   engineClient: EngineClient;
-}): TraceSymbolService {
+}): TraceFlowService {
   return {
     async execute(input) {
       let response;
       try {
-        response = await options.engineClient.request<TraceSymbolEngineResult>({
+        response = await options.engineClient.request<TraceFlowEngineResult>({
           id: nextRequestId(),
-          capability: "workspace.trace_symbol",
+          capability: "workspace.trace_flow",
           workspaceRoot: options.workspaceRoot,
           payload: {
             path: input.path,
@@ -62,7 +62,7 @@ export function createTraceSymbolService(options: {
       return buildSuccessResponse(input, response.result);
     },
     async validateAndExecute(payload) {
-      const normalized = normalizeTraceSymbolInput(payload);
+      const normalized = normalizeTraceFlowInput(payload);
       if (!normalized.ok) {
         return buildValidationErrorResponse(normalized.issues);
       }
@@ -72,17 +72,18 @@ export function createTraceSymbolService(options: {
 }
 
 function buildSuccessResponse(
-  input: TraceSymbolInput,
-  result: TraceSymbolEngineResult,
-): ResponseEnvelope<TraceSymbolData> {
+  input: TraceFlowInput,
+  result: TraceFlowEngineResult,
+): ResponseEnvelope<TraceFlowData> {
   const entrypointPath = result.resolvedPath ?? input.path;
   const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
   const fileCount = result.items.length;
+  const calleeCount = result.callees?.length ?? 0;
 
   return {
     tool: TOOL_NAME,
     status: result.truncated ? "partial" : "ok",
-    summary: buildSummary(input.symbol, entrypointPath, result.totalMatched),
+    summary: buildSummary(input.symbol, entrypointPath, calleeCount),
     data: {
       entrypoint: {
         path: entrypointPath,
@@ -93,6 +94,18 @@ function buildSuccessResponse(
       items: result.items.map((item) => ({
         path: item.path,
         language: item.language,
+      })),
+      callees: (result.callees ?? []).map((callee) => ({
+        path: callee.path,
+        line: callee.line,
+        endLine: callee.endLine,
+        column: callee.column,
+        callee: callee.callee,
+        calleeSymbol: callee.calleeSymbol,
+        relation: callee.relation,
+        language: callee.language,
+        snippet: callee.snippet,
+        depth: callee.depth,
       })),
     },
     errors: [],
@@ -114,7 +127,7 @@ function buildSuccessResponse(
 
 function buildValidationErrorResponse(
   issues: ValidationIssue[],
-): ResponseEnvelope<TraceSymbolData> {
+): ResponseEnvelope<TraceFlowData> {
   return {
     tool: TOOL_NAME,
     status: "error",
@@ -134,12 +147,12 @@ function buildValidationErrorResponse(
 }
 
 function buildMappedErrorResponse(
-  input: TraceSymbolInput,
+  input: TraceFlowInput,
   code: string,
   message: string,
   details: Record<string, unknown>,
   retryable: boolean,
-): ResponseEnvelope<TraceSymbolData> {
+): ResponseEnvelope<TraceFlowData> {
   const query = { ...input };
 
   if (code === "FILE_NOT_FOUND") {
@@ -184,14 +197,14 @@ function buildMappedErrorResponse(
     return {
       tool: TOOL_NAME,
       status: "error",
-      summary: "Symbol trace failed.",
+      summary: "Flow trace failed.",
       data: emptyData(input.path, input.symbol),
       errors: [
         {
           code: "BACKEND_EXECUTION_FAILED",
           message,
           retryable,
-          suggestion: "Verify the engine supports workspace.trace_symbol and retry.",
+          suggestion: "Verify the engine supports workspace.trace_flow and retry.",
           details,
         },
       ],
@@ -202,7 +215,7 @@ function buildMappedErrorResponse(
   return {
     tool: TOOL_NAME,
     status: "error",
-    summary: "Symbol trace failed.",
+    summary: "Flow trace failed.",
     data: emptyData(input.path, input.symbol),
     errors: [
       {
@@ -217,9 +230,9 @@ function buildMappedErrorResponse(
 }
 
 function buildEngineFailureResponse(
-  input: TraceSymbolInput,
+  input: TraceFlowInput,
   error: unknown,
-): ResponseEnvelope<TraceSymbolData> {
+): ResponseEnvelope<TraceFlowData> {
   return buildMappedErrorResponse(
     input,
     "BACKEND_EXECUTION_FAILED",
@@ -229,7 +242,7 @@ function buildEngineFailureResponse(
   );
 }
 
-function emptyData(path = "", symbol = ""): TraceSymbolData {
+function emptyData(path = "", symbol = ""): TraceFlowData {
   return {
     entrypoint: {
       path,
@@ -238,17 +251,18 @@ function emptyData(path = "", symbol = ""): TraceSymbolData {
     },
     fileCount: 0,
     items: [],
+    callees: [],
   };
 }
 
-function buildSummary(symbol: string, path: string, fileCount: number): string {
-  if (fileCount === 0) {
-    return `Trace completed for '${symbol}' from '${path}' with no related files found.`;
+function buildSummary(symbol: string, path: string, calleeCount: number): string {
+  if (calleeCount === 0) {
+    return `Trace completed for '${symbol}' from '${path}' with no callees found.`;
   }
-  if (fileCount === 1) {
-    return `Traced 1 related file for '${symbol}' from '${path}'.`;
+  if (calleeCount === 1) {
+    return `Traced 1 callee for '${symbol}' from '${path}'.`;
   }
-  return `Traced ${fileCount} related files for '${symbol}' from '${path}'.`;
+  return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
 }
 
 function resolveEffectiveLanguage(

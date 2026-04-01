@@ -104,6 +104,7 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
           kind: "function",
           path: "app/users/service.py",
           line: 8,
+          lineEnd: 12,
           language: "python",
         },
       ],
@@ -159,6 +160,7 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
           kind: "type",
           path: "crates/navigation-engine/src/analyzers/registry.rs",
           line: 11,
+          lineEnd: 15,
           language: "rust",
         },
       ],
@@ -239,6 +241,7 @@ for line in sys.stdin:
                     "kind": "class",
                     "path": "src/main/java/demo/ExampleService.java",
                     "line": 10,
+                    "lineEnd": 10,
                     "language": "java"
                 }],
                 "totalMatched": 1,
@@ -259,6 +262,7 @@ for line in sys.stdin:
                     "kind": "function",
                     "path": "app/users/service.py",
                     "line": 8,
+                    "lineEnd": 12,
                     "language": "python"
                 }],
                 "totalMatched": 1,
@@ -279,6 +283,7 @@ for line in sys.stdin:
                     "kind": "type",
                     "path": "crates/navigation-engine/src/analyzers/registry.rs",
                     "line": 11,
+                    "lineEnd": 15,
                     "language": "rust"
                 }],
                 "totalMatched": 1,
@@ -308,8 +313,8 @@ for line in sys.stdin:
         "result": {
             "resolvedPath": None,
             "items": [
-                {"symbol": "loader", "kind": "function", "path": "src/routes/a.ts", "line": 1, "language": "typescript"},
-                {"symbol": "loadAction", "kind": "function", "path": "src/routes/b.ts", "line": 2, "language": "typescript"}
+                {"symbol": "loader", "kind": "function", "path": "src/routes/a.ts", "line": 1, "lineEnd": 5, "language": "typescript"},
+                {"symbol": "loadAction", "kind": "function", "path": "src/routes/b.ts", "line": 2, "lineEnd": 6, "language": "typescript"}
             ],
             "totalMatched": 3,
             "truncated": True

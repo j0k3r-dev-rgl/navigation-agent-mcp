@@ -95,6 +95,7 @@ function buildSuccessResponse(
         kind: item.kind,
         path: item.path,
         line: item.line,
+        lineEnd: item.lineEnd,
         language: item.language,
       })),
     },

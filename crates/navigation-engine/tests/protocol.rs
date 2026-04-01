@@ -2,7 +2,7 @@ use navigation_engine::protocol::{
     FindSymbolItem, FindSymbolRequestPayload, FindSymbolResult, SearchTextContextLine,
     SearchTextFileMatch, SearchTextMatch, SearchTextRequestPayload, SearchTextResult,
     SearchTextSubmatch, TraceCallersItem, TraceCallersRequestPayload, TraceCallersResult,
-    TraceSymbolItem, TraceSymbolRequestPayload, TraceSymbolResult,
+    TraceFlowRequestPayload, TraceFlowResult, TraceSymbolItem,
 };
 
 #[test]
@@ -92,6 +92,7 @@ fn find_symbol_result_uses_camel_case_keys() {
             kind: "function".to_string(),
             path: "src/routes/example.ts".to_string(),
             line: 12,
+            line_end: 15,
             language: Some("typescript".to_string()),
         }],
         total_matched: 1,
@@ -107,6 +108,7 @@ fn find_symbol_result_uses_camel_case_keys() {
                 "kind": "function",
                 "path": "src/routes/example.ts",
                 "line": 12,
+                "lineEnd": 15,
                 "language": "typescript",
             }],
             "totalMatched": 1,
@@ -206,12 +208,13 @@ fn search_text_result_uses_camel_case_keys() {
 }
 
 #[test]
-fn trace_symbol_request_payload_uses_camel_case_keys() {
-    let payload = TraceSymbolRequestPayload {
+fn trace_flow_request_payload_uses_camel_case_keys() {
+    let payload = TraceFlowRequestPayload {
         path: "src/routes/dashboard.tsx".to_string(),
         symbol: "loader".to_string(),
         analyzer_language: "typescript".to_string(),
         public_language_filter: Some("typescript".to_string()),
+        max_depth: None,
     };
 
     assert_eq!(
@@ -226,8 +229,8 @@ fn trace_symbol_request_payload_uses_camel_case_keys() {
 }
 
 #[test]
-fn trace_symbol_result_uses_camel_case_keys() {
-    let result = TraceSymbolResult {
+fn trace_flow_result_uses_camel_case_keys() {
+    let result = TraceFlowResult {
         resolved_path: Some("src/routes/dashboard.tsx".to_string()),
         items: vec![TraceSymbolItem {
             path: "src/shared/navigation.ts".to_string(),
@@ -235,6 +238,7 @@ fn trace_symbol_result_uses_camel_case_keys() {
         }],
         total_matched: 1,
         truncated: false,
+        callees: vec![],
     };
 
     assert_eq!(
@@ -247,6 +251,7 @@ fn trace_symbol_result_uses_camel_case_keys() {
             }],
             "totalMatched": 1,
             "truncated": false,
+            "callees": [],
         })
     );
 }
