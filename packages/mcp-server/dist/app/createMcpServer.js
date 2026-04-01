@@ -6,7 +6,7 @@ import { createInspectTreeService } from "../services/inspectTreeService.js";
 import { createListEndpointsService } from "../services/listEndpointsService.js";
 import { createSearchTextService } from "../services/searchTextService.js";
 import { createTraceCallersService } from "../services/traceCallersService.js";
-import { createTraceSymbolService } from "../services/traceSymbolService.js";
+import { createTraceFlowService } from "../services/traceFlowService.js";
 import { registerCodeTools, } from "../tools/registerCodeTools.js";
 function toSdkToolResult(result) {
     return {
@@ -38,7 +38,7 @@ export function createMcpServer(options) {
         workspaceRoot: options.workspaceRoot,
         engineClient,
     });
-    const traceSymbolService = createTraceSymbolService({
+    const traceFlowService = createTraceFlowService({
         workspaceRoot: options.workspaceRoot,
         engineClient,
     });
@@ -52,7 +52,7 @@ export function createMcpServer(options) {
         listEndpointsHandler: (payload) => listEndpointsService.validateAndExecute(payload),
         searchTextHandler: (payload) => searchTextService.validateAndExecute(payload),
         traceCallersHandler: (payload) => traceCallersService.validateAndExecute(payload),
-        traceSymbolHandler: (payload) => traceSymbolService.validateAndExecute(payload),
+        traceFlowHandler: (payload) => traceFlowService.validateAndExecute(payload),
     });
     const sdkServer = new SdkMcpServer({
         name: "navigation-agent-mcp",

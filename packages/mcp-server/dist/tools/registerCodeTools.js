@@ -89,10 +89,10 @@ const toolMetadata = [
         },
     },
     {
-        name: "code.trace_symbol",
-        title: "Trace symbol forward",
-        description: "Trace a symbol forward from a starting file to related workspace files. The starting path must exist inside the workspace.",
-        inputSchema: { ...codeToolSchemas["code.trace_symbol"] },
+        name: "code.trace_flow",
+        title: "Trace execution flow forward",
+        description: "Trace execution flow forward from a starting file and symbol to related workspace files. The starting path must exist inside the workspace.",
+        inputSchema: { ...codeToolSchemas["code.trace_flow"] },
         sdkInputSchema: {
             path: z.string().trim().min(1),
             symbol: z.string().trim().min(1),
@@ -161,14 +161,14 @@ export function registerCodeTools(options) {
                 },
             };
         }
-        if (tool.name === "code.trace_symbol") {
+        if (tool.name === "code.trace_flow") {
             return {
                 ...tool,
                 execute: async (payload) => {
-                    if (!options.traceSymbolHandler) {
-                        throw new Error("Trace symbol migrated handler is scaffolded but not yet wired.");
+                    if (!options.traceFlowHandler) {
+                        throw new Error("Trace flow migrated handler is scaffolded but not yet wired.");
                     }
-                    return options.traceSymbolHandler(payload);
+                    return options.traceFlowHandler(payload);
                 },
             };
         }

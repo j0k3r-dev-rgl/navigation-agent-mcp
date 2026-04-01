@@ -1,24 +1,21 @@
-import { normalizeFindSymbolInput, } from "../contracts/public/code.js";
+import { normalizeTraceFlowInput, } from "../contracts/public/code.js";
 import { createResponseMeta, } from "../contracts/public/common.js";
 import { nextRequestId, } from "../engine/protocol.js";
-const TOOL_NAME = "code.find_symbol";
-export function createFindSymbolService(options) {
+const TOOL_NAME = "code.trace_flow";
+export function createTraceFlowService(options) {
     return {
         async execute(input) {
             let response;
             try {
                 response = await options.engineClient.request({
                     id: nextRequestId(),
-                    capability: "workspace.find_symbol",
+                    capability: "workspace.trace_flow",
                     workspaceRoot: options.workspaceRoot,
                     payload: {
+                        path: input.path,
                         symbol: input.symbol,
-                        path: input.path ?? null,
                         analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
                         publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
-                        kind: input.kind,
-                        matchMode: input.match,
-                        limit: input.limit,
                     },
                 });
             }
@@ -31,7 +28,7 @@ export function createFindSymbolService(options) {
             return buildSuccessResponse(input, response.result);
         },
         async validateAndExecute(payload) {
-            const normalized = normalizeFindSymbolInput(payload);
+            const normalized = normalizeTraceFlowInput(payload);
             if (!normalized.ok) {
                 return buildValidationErrorResponse(normalized.issues);
             }
@@ -40,47 +37,45 @@ export function createFindSymbolService(options) {
     };
 }
 function buildSuccessResponse(input, result) {
+    const entrypointPath = result.resolvedPath ?? input.path;
     const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
-    const count = result.totalMatched;
-    const returnedCount = result.items.length;
+    const fileCount = result.items.length;
+    const calleeCount = result.callees?.length ?? 0;
     return {
         tool: TOOL_NAME,
         status: result.truncated ? "partial" : "ok",
-        summary: buildSummary(input.symbol, count, result.truncated),
+        summary: buildSummary(input.symbol, entrypointPath, calleeCount),
         data: {
-            count,
-            returnedCount,
-            totalMatched: result.totalMatched,
+            entrypoint: {
+                path: entrypointPath,
+                symbol: input.symbol,
+                language: inferLanguageFromPath(entrypointPath),
+            },
+            fileCount,
             items: result.items.map((item) => ({
-                symbol: item.symbol,
-                kind: item.kind,
                 path: item.path,
-                line: item.line,
-                lineEnd: item.lineEnd,
                 language: item.language,
             })),
+            callees: (result.callees ?? []).map((callee) => ({
+                path: callee.path,
+                line: callee.line,
+                endLine: callee.endLine,
+                column: callee.column,
+                callee: callee.callee,
+                calleeSymbol: callee.calleeSymbol,
+                relation: callee.relation,
+                language: callee.language,
+                snippet: callee.snippet,
+                depth: callee.depth,
+            })),
         },
-        errors: result.truncated
-            ? [
-                {
-                    code: "RESULT_TRUNCATED",
-                    message: `Result set exceeded the requested limit of ${input.limit} items.`,
-                    retryable: false,
-                    suggestion: "Increase limit or narrow the path/language filter.",
-                    details: {
-                        returned: returnedCount,
-                        total: result.totalMatched,
-                        limit: input.limit,
-                    },
-                },
-            ]
-            : [],
+        errors: [],
         meta: createResponseMeta({
             query: { ...input },
             resolvedPath: result.resolvedPath,
             truncated: result.truncated,
             counts: {
-                returnedCount,
+                returnedCount: fileCount,
                 totalMatched: result.totalMatched,
             },
             detection: {
@@ -95,7 +90,7 @@ function buildValidationErrorResponse(issues) {
         tool: TOOL_NAME,
         status: "error",
         summary: "Request validation failed.",
-        data: { count: 0, returnedCount: 0, totalMatched: 0, items: [] },
+        data: emptyData(),
         errors: [
             {
                 code: "INVALID_INPUT",
@@ -115,13 +110,13 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
             tool: TOOL_NAME,
             status: "error",
             summary: "Path not found.",
-            data: { count: 0, returnedCount: 0, totalMatched: 0, items: [] },
+            data: emptyData(input.path, input.symbol),
             errors: [
                 {
                     code,
                     message,
                     retryable,
-                    suggestion: "Provide an existing file or directory path inside the workspace root.",
+                    suggestion: "Provide an existing file path inside the workspace root.",
                     details,
                 },
             ],
@@ -133,13 +128,13 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
             tool: TOOL_NAME,
             status: "error",
             summary: "Path validation failed.",
-            data: { count: 0, returnedCount: 0, totalMatched: 0, items: [] },
+            data: emptyData(input.path, input.symbol),
             errors: [
                 {
                     code,
                     message,
                     retryable,
-                    suggestion: "Use a path inside the workspace root or omit the path filter.",
+                    suggestion: "Use a file path inside the workspace root.",
                     details,
                 },
             ],
@@ -150,14 +145,14 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
         return {
             tool: TOOL_NAME,
             status: "error",
-            summary: "Symbol analysis failed.",
-            data: { count: 0, returnedCount: 0, totalMatched: 0, items: [] },
+            summary: "Flow trace failed.",
+            data: emptyData(input.path, input.symbol),
             errors: [
                 {
                     code: "BACKEND_EXECUTION_FAILED",
                     message,
                     retryable,
-                    suggestion: "Verify the engine supports workspace.find_symbol and retry.",
+                    suggestion: "Verify the engine supports workspace.trace_flow and retry.",
                     details,
                 },
             ],
@@ -167,11 +162,11 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
     return {
         tool: TOOL_NAME,
         status: "error",
-        summary: "Symbol analysis failed.",
-        data: { count: 0, returnedCount: 0, totalMatched: 0, items: [] },
+        summary: "Flow trace failed.",
+        data: emptyData(input.path, input.symbol),
         errors: [
             {
-                code: code === "BACKEND_EXECUTION_FAILED" ? code : "BACKEND_EXECUTION_FAILED",
+                code,
                 message,
                 retryable,
                 details,
@@ -182,6 +177,27 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
 }
 function buildEngineFailureResponse(input, error) {
     return buildMappedErrorResponse(input, "BACKEND_EXECUTION_FAILED", error instanceof Error ? error.message : String(error), {}, false);
+}
+function emptyData(path = "", symbol = "") {
+    return {
+        entrypoint: {
+            path,
+            symbol,
+            language: inferLanguageFromPath(path),
+        },
+        fileCount: 0,
+        items: [],
+        callees: [],
+    };
+}
+function buildSummary(symbol, path, calleeCount) {
+    if (calleeCount === 0) {
+        return `Trace completed for '${symbol}' from '${path}' with no callees found.`;
+    }
+    if (calleeCount === 1) {
+        return `Traced 1 callee for '${symbol}' from '${path}'.`;
+    }
+    return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
 }
 function resolveEffectiveLanguage(language, framework) {
     if (language) {
@@ -206,20 +222,24 @@ function resolveAnalyzerLanguage(language, framework) {
     if (effective === "rust") {
         return "rust";
     }
-    if (effective === "typescript" || effective === "javascript") {
+    return "typescript";
+}
+function inferLanguageFromPath(path) {
+    const normalized = path.toLowerCase();
+    if (normalized.endsWith(".ts") || normalized.endsWith(".tsx")) {
         return "typescript";
     }
-    return "auto";
-}
-function buildSummary(symbol, count, truncated) {
-    if (count === 0) {
-        return `No symbol definitions found for '${symbol}'.`;
+    if (normalized.endsWith(".js") || normalized.endsWith(".jsx")) {
+        return "javascript";
     }
-    if (truncated) {
-        return `Found ${count} symbol definitions for '${symbol}' and returned a truncated subset.`;
+    if (normalized.endsWith(".java")) {
+        return "java";
     }
-    if (count === 1) {
-        return `Found 1 symbol definition for '${symbol}'.`;
+    if (normalized.endsWith(".py")) {
+        return "python";
     }
-    return `Found ${count} symbol definitions for '${symbol}'.`;
+    if (normalized.endsWith(".rs")) {
+        return "rust";
+    }
+    return null;
 }

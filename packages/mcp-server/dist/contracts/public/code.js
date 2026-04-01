@@ -18,7 +18,7 @@ export const CODE_TOOL_NAMES = [
     "code.list_endpoints",
     "code.find_symbol",
     "code.search_text",
-    "code.trace_symbol",
+    "code.trace_flow",
     "code.trace_callers",
 ];
 const sharedDefs = {
@@ -196,7 +196,7 @@ export const searchTextInputSchema = {
     required: ["query"],
     $defs: sharedDefs,
 };
-export const traceSymbolInputSchema = {
+export const traceFlowInputSchema = {
     type: "object",
     properties: {
         path: { type: "string", minLength: 1 },
@@ -252,7 +252,7 @@ export const codeToolSchemas = {
     "code.list_endpoints": listEndpointsInputSchema,
     "code.find_symbol": findSymbolInputSchema,
     "code.search_text": searchTextInputSchema,
-    "code.trace_symbol": traceSymbolInputSchema,
+    "code.trace_flow": traceFlowInputSchema,
     "code.trace_callers": traceCallersInputSchema,
 };
 export function normalizeInspectTreeInput(payload) {
@@ -351,7 +351,7 @@ export function normalizeSearchTextInput(payload) {
         },
     };
 }
-export function normalizeTraceSymbolInput(payload) {
+export function normalizeTraceFlowInput(payload) {
     const issues = [];
     const scopedPath = normalizeRequiredTrimmedString(payload.path, "path", issues);
     const symbol = normalizeRequiredTrimmedString(payload.symbol, "symbol", issues);

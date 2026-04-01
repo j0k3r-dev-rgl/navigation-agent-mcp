@@ -8,5 +8,5 @@ export * from "./services/inspectTreeService.js";
 export * from "./services/listEndpointsService.js";
 export * from "./services/searchTextService.js";
 export * from "./services/traceCallersService.js";
-export * from "./services/traceSymbolService.js";
+export * from "./services/traceFlowService.js";
 export * from "./tools/registerCodeTools.js";

@@ -15,6 +15,6 @@ export interface RegisterCodeToolsOptions {
     listEndpointsHandler?: (payload: Record<string, unknown>) => Promise<ResponseEnvelope<unknown>>;
     searchTextHandler?: (payload: Record<string, unknown>) => Promise<ResponseEnvelope<unknown>>;
     traceCallersHandler?: (payload: Record<string, unknown>) => Promise<ResponseEnvelope<unknown>>;
-    traceSymbolHandler?: (payload: Record<string, unknown>) => Promise<ResponseEnvelope<unknown>>;
+    traceFlowHandler?: (payload: Record<string, unknown>) => Promise<ResponseEnvelope<unknown>>;
 }
 export declare function registerCodeTools(options: RegisterCodeToolsOptions): RegisteredCodeTool[];

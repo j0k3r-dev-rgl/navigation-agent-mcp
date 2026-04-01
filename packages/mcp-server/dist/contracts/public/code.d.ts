@@ -8,7 +8,7 @@ export declare const PUBLIC_SYMBOL_KINDS: readonly ["any", "class", "interface",
 export type PublicSymbolKind = (typeof PUBLIC_SYMBOL_KINDS)[number];
 export declare const MATCH_MODES: readonly ["exact", "fuzzy"];
 export type MatchMode = (typeof MATCH_MODES)[number];
-export declare const CODE_TOOL_NAMES: readonly ["code.inspect_tree", "code.list_endpoints", "code.find_symbol", "code.search_text", "code.trace_symbol", "code.trace_callers"];
+export declare const CODE_TOOL_NAMES: readonly ["code.inspect_tree", "code.list_endpoints", "code.find_symbol", "code.search_text", "code.trace_flow", "code.trace_callers"];
 export type CodeToolName = (typeof CODE_TOOL_NAMES)[number];
 export interface InspectTreeInput {
     path?: string | null;
@@ -50,6 +50,7 @@ export interface PublicSymbolDefinition {
     kind: PublicSymbolKind;
     path: string;
     line: number;
+    lineEnd: number;
     language: PublicLanguage | null;
 }
 export interface FindSymbolData {
@@ -124,25 +125,38 @@ export interface SearchTextData {
     totalMatchCount: number;
     items: SearchTextFileMatch[];
 }
-export interface TraceSymbolInput {
+export interface TraceFlowInput {
     path: string;
     symbol: string;
     language?: PublicLanguage | null;
     framework?: PublicFramework | null;
 }
-export interface TraceSymbolEntrypoint {
+export interface TraceFlowEntrypoint {
     path: string;
     symbol: string;
     language: PublicLanguage | null;
 }
-export interface TraceSymbolFile {
+export interface TraceFlowFile {
     path: string;
     language: PublicLanguage | null;
 }
-export interface TraceSymbolData {
-    entrypoint: TraceSymbolEntrypoint;
+export interface TraceFlowCallee {
+    path: string;
+    line: number;
+    endLine: number;
+    column: number | null;
+    callee: string;
+    calleeSymbol: string | null;
+    relation: string;
+    language: PublicLanguage | null;
+    snippet: string | null;
+    depth: number;
+}
+export interface TraceFlowData {
+    entrypoint: TraceFlowEntrypoint;
     fileCount: number;
-    items: TraceSymbolFile[];
+    items: TraceFlowFile[];
+    callees: TraceFlowCallee[];
 }
 export interface TraceCallersInput {
     path: string;
@@ -553,7 +567,7 @@ export declare const searchTextInputSchema: {
         };
     };
 };
-export declare const traceSymbolInputSchema: {
+export declare const traceFlowInputSchema: {
     readonly type: "object";
     readonly properties: {
         readonly path: {
@@ -943,7 +957,7 @@ export declare const codeToolSchemas: {
             };
         };
     };
-    readonly "code.trace_symbol": {
+    readonly "code.trace_flow": {
         readonly type: "object";
         readonly properties: {
             readonly path: {
@@ -1090,9 +1104,9 @@ export declare function normalizeSearchTextInput(payload: Record<string, unknown
     ok: false;
     issues: ValidationIssue[];
 };
-export declare function normalizeTraceSymbolInput(payload: Record<string, unknown>): {
+export declare function normalizeTraceFlowInput(payload: Record<string, unknown>): {
     ok: true;
-    value: TraceSymbolInput;
+    value: TraceFlowInput;
 } | {
     ok: false;
     issues: ValidationIssue[];

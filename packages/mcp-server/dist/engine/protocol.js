@@ -3,7 +3,7 @@ export const ENGINE_CAPABILITIES = [
     "workspace.find_symbol",
     "workspace.list_endpoints",
     "workspace.search_text",
-    "workspace.trace_symbol",
+    "workspace.trace_flow",
     "workspace.trace_callers",
 ];
 let requestSequence = 0;
