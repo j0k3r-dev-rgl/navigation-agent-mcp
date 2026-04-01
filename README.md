@@ -99,7 +99,7 @@ By default the server analyzes the directory where your agent is running. To pin
 | **workspace.find_symbol** | ✓ | ✓ | ✓ | ✓ | — |
 | **workspace.list_endpoints** | ✓ Spring REST & GraphQL | ✓ React Router 7 | ✓ FastAPI, Flask | ✓ Actix | — |
 | **workspace.trace_callers** | ✓ | ✓ | — | — | — |
-| **workspace.trace_flow** | ✓ Full DI tracing | — | — | — | — |
+| **workspace.trace_flow** | ✓ Full DI tracing | ✓ Basic tracing | — | — | — |
 | **workspace.inspect_tree** | — | — | — | — | ✓ |
 | **workspace.search_text** | — | — | — | — | ✓ |
 
@@ -108,10 +108,16 @@ By default the server analyzes the directory where your agent is running. To pin
 - — = Not supported (returns empty results)
 - **workspace.inspect_tree** and **workspace.search_text** work across all file types (no language parsing needed)
 
-### Java Special Features
+### Language-Specific Features
+
+**Java Special Features:**
 - **Full Spring DI tracing**: `trace_flow` follows interfaces to implementations through the complete call chain
 - **Infrastructure boundary detection**: Automatically stops recursion at adapters/repositories
 - **Method grouping**: Groups multiple calls to the same method with count
+
+**TypeScript/JavaScript:**
+- **Basic tracing**: `trace_flow` extracts callees from functions (loaders, actions, components)
+- Note: Does not yet follow imports to resolve function implementations (returns callees found in the same file)
 
 ---
 
@@ -168,8 +174,11 @@ Search plain text or regex patterns across workspace files using ripgrep.
 
 ---
 
-### `workspace.trace_flow` (Java only)
-Trace a method's complete call flow through the application, following Spring DI interfaces to their implementations.
+### `workspace.trace_flow` (Java & TypeScript)
+Trace a method's complete call flow through the application.
+
+**Java:** Follows Spring DI interfaces to implementations (ports → adapters).
+**TypeScript:** Extracts callees from the function body (same-file analysis).
 
 **Example:** Trace `getUsersByDependency` endpoint
 ```json
