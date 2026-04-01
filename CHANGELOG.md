@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.2.1...navigation-agent-mcp-v0.3.0) (2026-04-01)
+
+
+### Features
+
+* add npm publishing pipeline with cross-platform binary distribution ([0f053de](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/0f053de840f391e6a865b65ceff6786d9bf60064))
+* complete code tools migration to TS and Rust ([269dfea](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/269dfeabfa96293ede21e4a9b136e47301968647))
+* group callees by path and name to reduce noise ([81d55f1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/81d55f1f8092bdcd53f7ff49f2288ca8a7afc66b))
+* migrate list endpoints to TS and Rust ([a3200cf](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/a3200cffb91b6c6436d14725b1db9c43b3d037a7))
+* migrate MCP foundation and find_symbol to TS and Rust ([f7d9362](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/f7d9362255707d73566879e70b3719e934bec491))
+
+
+### Bug Fixes
+
+* broken export of traceFlowService in index.ts ([0413f8d](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/0413f8d1777568804d1b2f515b87085a182859b0))
+* force cargo target-dir to repo root to fix artifact path ([214e021](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/214e021f7f72fa3f51d24a40f8e9a688a96600b2))
+* gracefully handle permission denied errors during file scanning ([ecebf16](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/ecebf1678359c36208f7f1595b4020cd38643509))
+* ignore platform checks in npm ci and opt into Node 24 actions ([63f92c0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/63f92c0d09034bcf73418d717dab9029478fb8a0))
+* remove incorrect type casts in registerCodeTools handlers ([f3e5412](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/f3e541215297cd115f609b8a6201be6012fe962c))
+* remove platform packages from workspaces to avoid EBADPLATFORM in CI ([691836d](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/691836df942bd1b4f6597dac7244240481b7b180))
+* rename trace_symbol to trace_flow across codebase ([fb43959](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/fb439596b48ea83081893ab6f63d168711ae3eaf))
+* replace deprecated macos-13 runner with macos-latest ([b59e34c](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/b59e34c7f808817ef50d8f5757c2a29a979033e8))
+* resolve tsc build errors — rewriteRelativeImportExtensions and type casts ([df8d5e1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/df8d5e1fe80f691cb2e0c56d9f8a17509756846b))
+* skip unreadable directories during workspace file walk ([30009d9](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/30009d9c0e38dea0d40625ee7ac58bb07cd7e362))
+* skip unreadable files instead of failing in find_symbol, list_endpoints, trace_callers ([a057ff7](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/a057ff77a5ae5745e9bf80885c8d181e6d354572))
+* strip existing shebang before prepending in add-shebang.mjs ([737673f](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/737673fd3ed4d4283fe7bd700d123b7d27a908dd))
+* trace_flow now traces through ports to adapters using global index ([c0d032b](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/c0d032ba52aea182429eec450decee01fd102966))
+* use ./ prefix in npm publish paths to avoid GitHub shorthand interpretation ([ff104e3](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/ff104e3b97616cea22c316ccf248f6a982e14ccc))
+
 ## [0.2.1] - 2026-04-01
 
 ### Bug Fixes
