@@ -96,9 +96,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set version from git tag
-        run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
-
       - name: Build TypeScript
         run: npm run mcp-server:build
 
