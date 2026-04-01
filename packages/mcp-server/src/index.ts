@@ -8,5 +8,5 @@ export * from "./services/inspectTreeService.ts";
 export * from "./services/listEndpointsService.ts";
 export * from "./services/searchTextService.ts";
 export * from "./services/traceCallersService.ts";
-export * from "./services/traceSymbolService.ts";
+export * from "./services/traceFlowService.ts";
 export * from "./tools/registerCodeTools.ts";

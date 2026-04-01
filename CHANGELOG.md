@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-04-01
+
+### Bug Fixes
+
+* fix broken export of traceFlowService in index.ts
+
 ## [0.2.0] - 2026-04-01
 
 ### Features
