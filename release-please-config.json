@@ -4,13 +4,89 @@
   "packages": {
     ".": {
       "release-type": "node",
+      "release-as": "0.3.4",
       "package-name": "navigation-agent-mcp",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         {
           "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "package-lock.json",
+          "jsonpath": "$.packages[\"\"].version"
+        },
+        {
+          "type": "json",
           "path": "packages/mcp-server/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.optionalDependencies[\"@navigation-agent/mcp-server-linux-x64\"]"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.optionalDependencies[\"@navigation-agent/mcp-server-linux-arm64\"]"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.optionalDependencies[\"@navigation-agent/mcp-server-darwin-x64\"]"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.optionalDependencies[\"@navigation-agent/mcp-server-darwin-arm64\"]"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server/package.json",
+          "jsonpath": "$.optionalDependencies[\"@navigation-agent/mcp-server-win32-x64\"]"
+        },
+        {
+          "type": "json",
+          "path": "packages/contract-tests/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server-linux-x64/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server-linux-arm64/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server-darwin-x64/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server-darwin-arm64/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/mcp-server-win32-x64/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "toml",
+          "path": "crates/navigation-engine/Cargo.toml",
+          "jsonpath": "$.package.version"
         }
       ]
     }
