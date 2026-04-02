@@ -1,6 +1,6 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env -S npx tsx
 
-import { createMcpServer } from "../app/createMcpServer.ts";
+import { createMcpServer } from "../app/createMcpServer.js";
 
 function getFlagValue(argv: readonly string[], flag: string): string | null {
   const flagIndex = argv.findIndex((value) => value === flag);

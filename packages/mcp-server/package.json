@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "MCP server for AI-assisted code navigation — find symbols, trace callers, list endpoints and more.",
   "type": "module",
   "bin": {
@@ -16,17 +16,17 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev": "node --experimental-strip-types ./src/bin/navigation-mcp.ts --transport stdio",
+    "dev": "npx tsx ./src/bin/navigation-mcp.ts --transport stdio",
     "build": "tsc -p tsconfig.build.json && node ../../scripts/add-shebang.mjs dist/bin/navigation-mcp.js",
-    "test": "node --experimental-strip-types --test ./test/**/*.spec.ts",
-    "check": "tsc --noEmit"
+    "test": "npx tsx --test ./test/**/*.spec.ts",
+    "check": "tsc --noEmit -p tsconfig.json"
   },
   "optionalDependencies": {
-    "@navigation-agent/mcp-server-linux-x64": "0.3.0",
-    "@navigation-agent/mcp-server-linux-arm64": "0.3.0",
-    "@navigation-agent/mcp-server-darwin-x64": "0.3.0",
-    "@navigation-agent/mcp-server-darwin-arm64": "0.3.0",
-    "@navigation-agent/mcp-server-win32-x64": "0.3.0"
+    "@navigation-agent/mcp-server-linux-x64": "0.3.1",
+    "@navigation-agent/mcp-server-linux-arm64": "0.3.1",
+    "@navigation-agent/mcp-server-darwin-x64": "0.3.1",
+    "@navigation-agent/mcp-server-darwin-arm64": "0.3.1",
+    "@navigation-agent/mcp-server-win32-x64": "0.3.1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.0"
   },
   "license": "MIT",

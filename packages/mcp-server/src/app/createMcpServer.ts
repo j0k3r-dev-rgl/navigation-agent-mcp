@@ -1,17 +1,17 @@
 import { McpServer as SdkMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.ts";
-import { createFindSymbolService } from "../services/findSymbolService.ts";
-import { createInspectTreeService } from "../services/inspectTreeService.ts";
-import { createListEndpointsService } from "../services/listEndpointsService.ts";
-import { createSearchTextService } from "../services/searchTextService.ts";
-import { createTraceCallersService } from "../services/traceCallersService.ts";
-import { createTraceFlowService } from "../services/traceFlowService.ts";
+import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.js";
+import { createFindSymbolService } from "../services/findSymbolService.js";
+import { createInspectTreeService } from "../services/inspectTreeService.js";
+import { createListEndpointsService } from "../services/listEndpointsService.js";
+import { createSearchTextService } from "../services/searchTextService.js";
+import { createTraceCallersService } from "../services/traceCallersService.js";
+import { createTraceFlowService } from "../services/traceFlowService.js";
 import {
   registerCodeTools,
   type RegisteredCodeTool,
-} from "../tools/registerCodeTools.ts";
-import type { ResponseEnvelope } from "../contracts/public/common.ts";
+} from "../tools/registerCodeTools.js";
+import type { ResponseEnvelope } from "../contracts/public/common.js";
 
 export interface CreateMcpServerOptions {
   workspaceRoot: string;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createTraceFlowService } from "../../src/services/traceFlowService.ts";
-import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
+import { createTraceFlowService } from "../../src/services/traceFlowService.js";
+import type { EngineClient } from "../../src/engine/rustEngineClient.js";
 
 class MockEngineClient implements EngineClient {
   response: unknown;

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
-import { createMcpServer } from "../../src/app/createMcpServer.ts";
-import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
+import { createMcpServer } from "../../src/app/createMcpServer.js";
+import type { EngineClient } from "../../src/engine/rustEngineClient.js";
 
 class MockEngineClient implements EngineClient {
   requests: Array<{ capability: string; payload: unknown }> = [];
@@ -173,9 +173,9 @@ test("migrated and compatibility tools route through the expected backend", asyn
 
 test("--describe-tools stays transport-agnostic while reporting the SDK runtime", () => {
   const response = spawnSync(
-    "node",
+    "npx",
     [
-      "--experimental-strip-types",
+      "tsx",
       "./src/bin/navigation-mcp.ts",
       "--describe-tools",
       "--workspace-root",

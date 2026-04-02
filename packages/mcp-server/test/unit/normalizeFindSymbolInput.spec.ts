@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFindSymbolInput } from "../../src/contracts/public/code.ts";
+import { normalizeFindSymbolInput } from "../../src/contracts/public/code.js";
 
 test("normalizeFindSymbolInput trims symbol and path and applies defaults", () => {
   const normalized = normalizeFindSymbolInput({

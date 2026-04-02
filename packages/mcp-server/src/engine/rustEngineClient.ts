@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { once } from "node:events";
 import { EOL } from "node:os";
 
-import type { EngineRequest, EngineResponse } from "./protocol.ts";
+import type { EngineRequest, EngineResponse } from "./protocol.js";
 
 const _require = createRequire(import.meta.url);
 

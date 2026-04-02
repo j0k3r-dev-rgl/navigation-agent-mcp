@@ -6,7 +6,5 @@
     "declaration": true,
     "declarationDir": "dist",
     "rewriteRelativeImportExtensions": true
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["test/**/*"]
+  }
 }

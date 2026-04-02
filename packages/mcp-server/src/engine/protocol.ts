@@ -4,7 +4,7 @@ import type {
   PublicLanguage,
   PublicEndpointKind,
   PublicSymbolKind,
-} from "../contracts/public/code.ts";
+} from "../contracts/public/code.js";
 
 export const ENGINE_CAPABILITIES = [
   "workspace.inspect_tree",

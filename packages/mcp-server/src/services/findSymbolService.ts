@@ -5,17 +5,17 @@ import {
   type PublicFramework,
   type PublicLanguage,
   type ValidationIssue,
-} from "../contracts/public/code.ts";
+} from "../contracts/public/code.js";
 import {
   createResponseMeta,
   type ResponseEnvelope,
-} from "../contracts/public/common.ts";
+} from "../contracts/public/common.js";
 import {
   nextRequestId,
   type AnalyzerLanguage,
   type FindSymbolEngineResult,
-} from "../engine/protocol.ts";
-import type { EngineClient } from "../engine/rustEngineClient.ts";
+} from "../engine/protocol.js";
+import type { EngineClient } from "../engine/rustEngineClient.js";
 
 const TOOL_NAME = "code.find_symbol";
 

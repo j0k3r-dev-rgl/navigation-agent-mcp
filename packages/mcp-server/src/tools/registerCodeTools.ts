@@ -12,8 +12,8 @@ import {
   type SearchTextInput,
   type TraceCallersInput,
   type TraceFlowInput,
-} from "../contracts/public/code.ts";
-import type { ResponseEnvelope } from "../contracts/public/common.ts";
+} from "../contracts/public/code.js";
+import type { ResponseEnvelope } from "../contracts/public/common.js";
 import * as z from "zod/v4";
 
 export interface RegisteredCodeTool {

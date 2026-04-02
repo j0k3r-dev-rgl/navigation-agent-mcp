@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSearchTextService } from "../../src/services/searchTextService.ts";
-import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
+import { createSearchTextService } from "../../src/services/searchTextService.js";
+import type { EngineClient } from "../../src/engine/rustEngineClient.js";
 
 class MockEngineClient implements EngineClient {
   response: unknown;

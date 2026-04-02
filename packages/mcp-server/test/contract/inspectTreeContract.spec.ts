@@ -22,9 +22,9 @@ test("stdio runtime lists tools and returns migrated inspect_tree responses", as
   await fs.writeFile(engineScriptPath, buildEngineStubScript(), "utf8");
 
   const child = spawn(
-    "node",
+    "npx",
     [
-      "--experimental-strip-types",
+      "tsx",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
       "stdio-legacy",

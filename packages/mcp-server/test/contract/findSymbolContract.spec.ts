@@ -13,9 +13,9 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
   await fs.writeFile(engineScriptPath, buildEngineStubScript(), "utf8");
 
   const child = spawn(
-    "node",
+    "npx",
     [
-      "--experimental-strip-types",
+      "tsx",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
       "stdio-legacy",

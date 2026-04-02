@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server-darwin-x64",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "macOS x64 binary for @navigation-agent/mcp-server. Install the main package instead.",
   "os": [
     "darwin"

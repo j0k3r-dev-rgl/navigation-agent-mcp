@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFindSymbolService } from "../../src/services/findSymbolService.ts";
-import type { EngineClient } from "../../src/engine/rustEngineClient.ts";
+import { createFindSymbolService } from "../../src/services/findSymbolService.js";
+import type { EngineClient } from "../../src/engine/rustEngineClient.js";
 
 class MockEngineClient implements EngineClient {
   response: unknown;

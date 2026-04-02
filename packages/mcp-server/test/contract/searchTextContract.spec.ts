@@ -13,9 +13,9 @@ test("stdio runtime returns migrated search_text responses through the Rust engi
   await fs.writeFile(engineScriptPath, buildEngineStubScript(), "utf8");
 
   const child = spawn(
-    "node",
+    "npx",
     [
-      "--experimental-strip-types",
+      "tsx",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
       "stdio-legacy",
