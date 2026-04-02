@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.3.4...navigation-agent-mcp-v0.3.5) (2026-04-02)
+
+
+### Bug Fixes
+
+* remove temporary release-please overrides ([311f99f](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/311f99ff42a29e5908728ad41934722ea6c738f7))
+
 ## [0.3.4](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.3.3...navigation-agent-mcp-v0.3.4) (2026-04-02)
 
 
