@@ -2,7 +2,7 @@ use navigation_engine::protocol::{
     FindSymbolItem, FindSymbolRequestPayload, FindSymbolResult, SearchTextContextLine,
     SearchTextFileMatch, SearchTextMatch, SearchTextRequestPayload, SearchTextResult,
     SearchTextSubmatch, TraceCallersItem, TraceCallersRequestPayload, TraceCallersResult,
-    TraceFlowRequestPayload, TraceFlowResult, TraceSymbolItem,
+    TraceFlowLineRange, TraceFlowNode, TraceFlowRequestPayload, TraceFlowResult, TraceFlowVia,
 };
 
 #[test]
@@ -232,26 +232,59 @@ fn trace_flow_request_payload_uses_camel_case_keys() {
 fn trace_flow_result_uses_camel_case_keys() {
     let result = TraceFlowResult {
         resolved_path: Some("src/routes/dashboard.tsx".to_string()),
-        items: vec![TraceSymbolItem {
-            path: "src/shared/navigation.ts".to_string(),
-            language: Some("typescript".to_string()),
-        }],
-        total_matched: 1,
         truncated: false,
-        callees: vec![],
+        root: Some(TraceFlowNode {
+            symbol: "loader".to_string(),
+            path: "src/routes/dashboard.tsx".to_string(),
+            kind: "route".to_string(),
+            range_line: TraceFlowLineRange { init: 12, end: 18 },
+            via: None,
+            callers: vec![TraceFlowNode {
+                symbol: "getData".to_string(),
+                path: "src/shared/navigation.ts".to_string(),
+                kind: "function".to_string(),
+                range_line: TraceFlowLineRange { init: 4, end: 10 },
+                via: Some(vec![TraceFlowVia {
+                    line: 13,
+                    column: Some(10),
+                    snippet: Some("return getData();".to_string()),
+                    receiver_type: None,
+                }]),
+                callers: vec![],
+            }],
+        }),
     };
 
     assert_eq!(
         serde_json::to_value(result).unwrap(),
         serde_json::json!({
             "resolvedPath": "src/routes/dashboard.tsx",
-            "items": [{
-                "path": "src/shared/navigation.ts",
-                "language": "typescript",
-            }],
-            "totalMatched": 1,
             "truncated": false,
-            "callees": [],
+            "root": {
+                "symbol": "loader",
+                "path": "src/routes/dashboard.tsx",
+                "kind": "route",
+                "rangeLine": {
+                    "init": 12,
+                    "end": 18
+                },
+                "callers": [{
+                    "symbol": "getData",
+                    "path": "src/shared/navigation.ts",
+                    "kind": "function",
+                    "rangeLine": {
+                        "init": 4,
+                        "end": 10
+                    },
+                    "via": [{
+                        "line": 13,
+                        "column": 10,
+                        "snippet": "return getData();",
+                        "receiverType": null
+                    }],
+                    "callers": []
+                }]
+            }
         })
     );
 }

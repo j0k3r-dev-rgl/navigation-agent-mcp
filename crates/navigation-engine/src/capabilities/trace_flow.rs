@@ -1,16 +1,19 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::OnceLock;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::analyzers::types::FindCalleesQuery;
 use crate::analyzers::AnalyzerLanguage;
 use crate::analyzers::AnalyzerRegistry;
 use crate::error::EngineError;
 use crate::protocol::{
-    CalleeItem, EngineRequest, EngineResponse, TraceFlowRequestPayload, TraceFlowResult,
-    TraceSymbolItem,
+    EngineRequest, EngineResponse, FindSymbolRequestPayload, TraceFlowLineRange, TraceFlowNode,
+    TraceFlowRequestPayload, TraceFlowResult, TraceFlowVia,
 };
-use crate::workspace::{canonicalize_workspace_root, contains_hard_ignored_segment, resolve_scope};
+use crate::workspace::{
+    canonicalize_workspace_root, contains_hard_ignored_segment, public_path, resolve_scope,
+};
 use tree_sitter::{Node, Parser};
+
+use super::find_symbol::find_symbol;
 
 pub const CAPABILITY: &str = "workspace.trace_flow";
 
@@ -44,22 +47,16 @@ struct JavaFileContextInfo {
     is_interface: bool,
 }
 
-static JAVA_INDEX: OnceLock<Option<JavaProjectIndex>> = OnceLock::new();
-
 impl JavaProjectIndex {
-    /// Get or create the Java project index (cached globally)
-    pub fn get_or_create(workspace_root: &std::path::Path) -> Option<&'static Self> {
-        JAVA_INDEX
-            .get_or_init(|| {
-                let mut index = Self::new_empty();
-                index.scan_project(workspace_root);
-                if index.is_empty() {
-                    None
-                } else {
-                    Some(index)
-                }
-            })
-            .as_ref()
+    /// Build the Java project index for the given workspace.
+    pub fn build(workspace_root: &std::path::Path) -> Option<Self> {
+        let mut index = Self::new_empty();
+        index.scan_project(workspace_root);
+        if index.is_empty() {
+            None
+        } else {
+            Some(index)
+        }
     }
 
     fn new_empty() -> Self {
@@ -553,303 +550,562 @@ pub fn trace_flow(
     if contains_hard_ignored_segment(&workspace_root, &scope.absolute_path) {
         return Ok(TraceFlowResult {
             resolved_path: Some(scope.public_path.clone()),
-            items: vec![TraceSymbolItem {
-                path: scope.public_path.clone(),
-                language: Some(payload.analyzer_language.clone()),
-            }],
-            total_matched: 0,
             truncated: false,
-            callees: vec![],
+            root: None,
         });
     }
 
-    // Use the absolute path from scope for the starting file
     let start_file_path = scope.absolute_path.to_string_lossy().to_string();
-
-    // Determine language and whether to use Java index
     let is_java_file = start_file_path.ends_with(".java");
     let java_index = if is_java_file {
-        JavaProjectIndex::get_or_create(&workspace_root)
+        JavaProjectIndex::build(&workspace_root)
     } else {
         None
     };
-
-    // Now do recursive callee tracing
     let max_depth = payload.max_depth.unwrap_or(5) as usize;
-    let mut visited = BTreeMap::new();
-    let mut all_callees: Vec<CalleeItem> = Vec::new();
-
-    trace_callees_recursive(
+    let analyzer_language = parse_analyzer_language(&payload.analyzer_language)?;
+    let mut branch_visited = BTreeSet::new();
+    let root = build_execution_tree(
         &workspace_root,
-        &start_file_path,
+        &scope.absolute_path,
         &payload.symbol,
+        analyzer_language,
+        java_index.as_ref(),
         0,
         max_depth,
-        &mut visited,
-        &mut all_callees,
-        java_index,
-        &start_file_path,
-        &payload.symbol,
-    );
-
-    // Group callees by (path, callee) to reduce noise
-    // Keep track of count and all line numbers
-    let mut grouped: BTreeMap<(String, String, u32), (CalleeItem, usize, Vec<u32>)> =
-        BTreeMap::new();
-    for callee in all_callees {
-        let key = (callee.path.clone(), callee.callee.clone(), callee.depth);
-        let entry = grouped
-            .entry(key)
-            .or_insert_with(|| (callee.clone(), 0, Vec::new()));
-        entry.1 += 1; // increment count
-        if !entry.2.contains(&callee.line) {
-            entry.2.push(callee.line); // add unique line
-        }
-    }
-
-    // Build grouped callees with count info in snippet
-    let unique_callees: Vec<CalleeItem> = grouped
-        .into_values()
-        .map(|(mut callee, count, mut lines)| {
-            lines.sort();
-            let lines_str = if lines.len() > 3 {
-                format!(
-                    "{} lines: {}, ...",
-                    count,
-                    lines[..3]
-                        .iter()
-                        .map(|l| l.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            } else {
-                format!(
-                    "{} lines: {}",
-                    count,
-                    lines
-                        .iter()
-                        .map(|l| l.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            };
-            callee.snippet = Some(format!(
-                "{} [called {} time(s)]",
-                callee
-                    .snippet
-                    .unwrap_or_default()
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim(),
-                count
-            ));
-            callee
-        })
-        .collect();
-
-    let items = unique_callees
-        .iter()
-        .map(|c| TraceSymbolItem {
-            path: c.path.clone(),
-            language: c.language.clone(),
-        })
-        .collect();
+        None,
+        &mut branch_visited,
+    )?;
 
     Ok(TraceFlowResult {
         resolved_path: Some(scope.public_path),
-        total_matched: unique_callees.len(),
         truncated: false,
-        items,
-        callees: unique_callees,
+        root,
     })
 }
 
-fn trace_callees_recursive(
+fn build_execution_tree(
     workspace_root: &std::path::Path,
-    file_path: &str,
+    file_path: &std::path::Path,
     symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+    java_index: Option<&JavaProjectIndex>,
     current_depth: usize,
     max_depth: usize,
-    visited: &mut BTreeMap<(String, String), usize>,
-    results: &mut Vec<CalleeItem>,
-    java_index: Option<&'static JavaProjectIndex>,
-    original_file: &str,
-    original_symbol: &str,
-) {
-    if current_depth >= max_depth {
-        return;
-    }
-
-    // Infrastructure boundary check - stop recursion at persistence layer
-    if is_infrastructure_file(file_path) {
-        return;
-    }
-
-    // Check if we've already visited this (file, symbol) pair at same or deeper depth
-    let key = (file_path.to_string(), symbol.to_string());
-    if let Some(prev_depth) = visited.get(&key) {
-        if *prev_depth <= current_depth {
-            return;
-        }
-    }
-    visited.insert(key, current_depth);
-
-    // Resolve file path - if relative, join with workspace root
-    let absolute_file_path = if std::path::Path::new(file_path).is_absolute() {
-        std::path::PathBuf::from(file_path)
+    via: Option<Vec<TraceFlowVia>>,
+    branch_visited: &mut BTreeSet<(String, String)>,
+) -> Result<Option<TraceFlowNode>, EngineError> {
+    let absolute_file = if file_path.is_absolute() {
+        file_path.to_path_buf()
     } else {
         workspace_root.join(file_path)
     };
 
-    // Read the source file
-    let source = match std::fs::read_to_string(&absolute_file_path) {
-        Ok(s) => s,
-        Err(_) => {
-            return;
-        }
+    let resolved = match absolute_file.canonicalize() {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
     };
 
-    // Find the analyzer for this file type using registry with Auto language detection
+    let visit_key = (resolved.to_string_lossy().to_string(), symbol.to_string());
+    let Some(metadata) =
+        resolve_symbol_metadata(workspace_root, &resolved, symbol, analyzer_language)?
+    else {
+        return Ok(None);
+    };
+
+    if branch_visited.contains(&visit_key) {
+        return Ok(Some(TraceFlowNode {
+            symbol: qualify_symbol_name(java_index, &resolved, &metadata.symbol),
+            path: public_path(workspace_root, &resolved),
+            kind: classify_trace_node_kind(&resolved, java_index),
+            range_line: TraceFlowLineRange {
+                init: metadata.line,
+                end: metadata.line_end,
+            },
+            via,
+            callers: Vec::new(),
+        }));
+    }
+
+    branch_visited.insert(visit_key.clone());
+
+    let mut node = TraceFlowNode {
+        symbol: qualify_symbol_name(java_index, &resolved, &metadata.symbol),
+        path: public_path(workspace_root, &resolved),
+        kind: classify_trace_node_kind(&resolved, java_index),
+        range_line: TraceFlowLineRange {
+            init: metadata.line,
+            end: metadata.line_end,
+        },
+        via,
+        callers: Vec::new(),
+    };
+
+    let should_expand = current_depth < max_depth && !is_infrastructure_file(&node.path);
+    if should_expand {
+        let children = collect_child_nodes(
+            workspace_root,
+            &resolved,
+            symbol,
+            analyzer_language,
+            java_index,
+            current_depth,
+            max_depth,
+            branch_visited,
+        )?;
+        node.callers = children;
+    }
+
+    sort_trace_node(&mut node);
+
+    branch_visited.remove(&visit_key);
+    Ok(Some(node))
+}
+
+fn collect_child_nodes(
+    workspace_root: &std::path::Path,
+    file_path: &std::path::Path,
+    symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+    java_index: Option<&JavaProjectIndex>,
+    current_depth: usize,
+    max_depth: usize,
+    branch_visited: &mut BTreeSet<(String, String)>,
+) -> Result<Vec<TraceFlowNode>, EngineError> {
+    let source = match std::fs::read_to_string(file_path) {
+        Ok(value) => value,
+        Err(_) => return Ok(Vec::new()),
+    };
+
     let registry = AnalyzerRegistry::new();
-    let analyzer = match registry.analyzer_for_file(AnalyzerLanguage::Auto, &absolute_file_path) {
-        Some(a) => a,
-        None => {
-            return;
-        }
+    let Some(analyzer) = registry.analyzer_for_file(AnalyzerLanguage::Auto, file_path) else {
+        return Ok(Vec::new());
     };
 
     let query = FindCalleesQuery {
-        source_path: absolute_file_path.clone(),
+        source_path: file_path.to_path_buf(),
         target_symbol: symbol.to_string(),
     };
 
-    let callees = analyzer.find_callees(&absolute_file_path, &source, &query);
+    let callees = analyzer.find_callees(file_path, &source, &query);
+    let mut grouped: BTreeMap<(String, String), TraceFlowNode> = BTreeMap::new();
 
     for callee in callees {
-        // Step 1: FILTER using global project index
-        // Check if this callee should be included based on receiver type
-        let should_include =
-            if let (Some(index), Some(receiver_type)) = (java_index, &callee.receiver_type) {
-                let clean_type = receiver_type
-                    .split('<')
-                    .next()
-                    .unwrap_or(receiver_type)
-                    .trim();
+        let resolved_call = resolve_callee_targets(
+            workspace_root,
+            file_path,
+            &callee,
+            analyzer_language,
+            java_index,
+        )?;
 
-                // Check if it's a project type (in the index)
-                let is_project_type = index.is_project_type(clean_type);
+        let has_targets = resolved_call.interface_target.is_some()
+            || !resolved_call.implementation_targets.is_empty()
+            || !resolved_call.direct_targets.is_empty();
 
-                // Check if it's a known external type (framework/library)
-                let is_external_type = is_external_framework_type(clean_type);
-
-                // Include if:
-                // - It's a project type (in our index), OR
-                // - We don't know what it is (conservative: include unknown types)
-                // Exclude if:
-                // - It's a known external framework type
-                is_project_type || !is_external_type
-            } else {
-                // No receiver type or no index - include conservatively
-                true
-            };
-
-        if !should_include {
+        if !has_targets {
+            if let Some(fallback) =
+                build_unresolved_leaf(workspace_root, file_path, &callee, analyzer_language)
+            {
+                merge_trace_node(&mut grouped, fallback);
+            }
             continue;
         }
 
-        // Step 2: Check recursion (interface calls are NOT recursive even with same name)
-        let receiver_type_clean = callee
-            .receiver_type
-            .as_ref()
-            .map(|rt| rt.split('<').next().unwrap_or(rt).trim().to_string());
-        let is_interface_call = receiver_type_clean
-            .as_ref()
-            .and_then(|clean| java_index.map(|idx| idx.is_interface(clean)))
-            .unwrap_or(false);
-        let is_recursive =
-            callee.path == original_file && callee.callee == original_symbol && !is_interface_call;
-
-        let callee_item = CalleeItem {
-            path: callee.path.clone(),
+        let via = vec![TraceFlowVia {
             line: callee.line,
-            end_line: callee.end_line,
             column: callee.column,
-            callee: callee.callee.clone(),
-            callee_symbol: callee.callee_symbol.clone(),
-            relation: callee.relation,
-            language: callee.language.clone(),
-            snippet: callee.snippet,
-            depth: current_depth as u32 + 1,
-            call_chain: vec![],
-            recursive: is_recursive,
-        };
+            snippet: callee.snippet.clone().map(|s| compact_snippet(&s)),
+            receiver_type: callee.receiver_type.clone(),
+        }];
 
-        results.push(callee_item.clone());
+        if let Some(interface_target) = resolved_call.interface_target {
+            if let Some(child) = build_execution_tree(
+                workspace_root,
+                &interface_target.path,
+                &interface_target.symbol,
+                analyzer_language,
+                java_index,
+                current_depth + 1,
+                max_depth,
+                Some(via.clone()),
+                branch_visited,
+            )? {
+                let mut child = child;
+                for implementation_target in resolved_call.implementation_targets {
+                    if let Some(implementation_node) = build_execution_tree(
+                        workspace_root,
+                        &implementation_target.path,
+                        &implementation_target.symbol,
+                        analyzer_language,
+                        java_index,
+                        current_depth + 2,
+                        max_depth,
+                        Some(via.clone()),
+                        branch_visited,
+                    )? {
+                        merge_child_node(&mut child, implementation_node);
+                    }
+                }
+                merge_trace_node(&mut grouped, child);
+            }
+            continue;
+        }
 
-        // Step 3: RECURSION - trace into implementations
-        // Callee paths are relative to the file they were found in, so resolve them
-        let callee_file_path = if std::path::Path::new(&callee.path).is_absolute() {
-            std::path::PathBuf::from(&callee.path)
-        } else {
-            // Resolve relative to the current file's directory
-            absolute_file_path
-                .parent()
-                .map(|p| p.join(&callee.path))
-                .unwrap_or_else(|| workspace_root.join(&callee.path))
-        };
+        for target in resolved_call.direct_targets {
+            if let Some(child) = build_execution_tree(
+                workspace_root,
+                &target.path,
+                &target.symbol,
+                analyzer_language,
+                java_index,
+                current_depth + 1,
+                max_depth,
+                Some(via.clone()),
+                branch_visited,
+            )? {
+                merge_trace_node(&mut grouped, child);
+            }
+        }
+    }
 
-        // Check if the callee's receiver type is an interface and trace implementations
-        let mut traced_interfaces = false;
+    let mut nodes: Vec<_> = grouped.into_values().collect();
+    nodes.sort_by(compare_trace_nodes);
+    Ok(nodes)
+}
+
+fn build_unresolved_leaf(
+    workspace_root: &std::path::Path,
+    current_file: &std::path::Path,
+    callee: &crate::analyzers::types::CalleeDefinition,
+    analyzer_language: AnalyzerLanguage,
+) -> Option<TraceFlowNode> {
+    if analyzer_language == AnalyzerLanguage::Java {
+        return None;
+    }
+
+    Some(TraceFlowNode {
+        symbol: callee.callee.clone(),
+        path: public_path(workspace_root, current_file),
+        kind: classify_trace_node_kind(current_file, None),
+        range_line: TraceFlowLineRange {
+            init: callee.line,
+            end: callee.end_line,
+        },
+        via: Some(vec![TraceFlowVia {
+            line: callee.line,
+            column: callee.column,
+            snippet: callee.snippet.clone().map(|s| compact_snippet(&s)),
+            receiver_type: callee.receiver_type.clone(),
+        }]),
+        callers: Vec::new(),
+    })
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedTraceTarget {
+    path: std::path::PathBuf,
+    symbol: String,
+}
+
+struct ResolvedTraceCall {
+    interface_target: Option<ResolvedTraceTarget>,
+    implementation_targets: Vec<ResolvedTraceTarget>,
+    direct_targets: Vec<ResolvedTraceTarget>,
+}
+
+fn resolve_callee_targets(
+    workspace_root: &std::path::Path,
+    current_file: &std::path::Path,
+    callee: &crate::analyzers::types::CalleeDefinition,
+    analyzer_language: AnalyzerLanguage,
+    java_index: Option<&JavaProjectIndex>,
+) -> Result<ResolvedTraceCall, EngineError> {
+    let mut interface_target = None;
+    let mut implementation_targets = Vec::new();
+    let mut direct_targets = Vec::new();
+
+    if analyzer_language == AnalyzerLanguage::Java {
         if let (Some(index), Some(receiver_type)) = (java_index, &callee.receiver_type) {
             let clean_type = receiver_type
                 .split('<')
                 .next()
                 .unwrap_or(receiver_type)
                 .trim();
-
             if index.is_interface(clean_type) {
-                // Find implementations of this interface
-                let implementations = index.find_implementations(clean_type);
-
-                if !implementations.is_empty() {
-                    traced_interfaces = true;
-
-                    // Trace each implementation
-                    for impl_path in &implementations {
-                        trace_callees_recursive(
-                            workspace_root,
-                            impl_path,
-                            &callee.callee,
-                            current_depth + 1,
-                            max_depth,
-                            visited,
-                            results,
-                            Some(index),
-                            original_file,
-                            original_symbol,
-                        );
-                    }
+                if let Some(interface_path) = index.get_interface_path(clean_type) {
+                    interface_target = Some(ResolvedTraceTarget {
+                        path: std::path::PathBuf::from(interface_path),
+                        symbol: callee.callee.clone(),
+                    });
                 }
+
+                for impl_path in index.find_implementations(clean_type) {
+                    implementation_targets.push(ResolvedTraceTarget {
+                        path: std::path::PathBuf::from(impl_path),
+                        symbol: callee.callee.clone(),
+                    });
+                }
+
+                return Ok(ResolvedTraceCall {
+                    interface_target,
+                    implementation_targets,
+                    direct_targets,
+                });
             }
         }
+    }
 
-        // Trace the callee directly if it's in a different file and wasn't an interface
-        if callee_file_path.to_string_lossy() != absolute_file_path.to_string_lossy()
-            && !traced_interfaces
-        {
-            trace_callees_recursive(
-                workspace_root,
-                &callee_file_path.to_string_lossy(),
-                &callee.callee,
-                current_depth + 1,
-                max_depth,
-                visited,
-                results,
-                java_index,
-                original_file,
-                original_symbol,
-            );
+    let same_file_target = resolve_symbol_metadata(
+        workspace_root,
+        current_file,
+        &callee.callee,
+        analyzer_language,
+    )?;
+    if same_file_target.is_some() {
+        direct_targets.push(ResolvedTraceTarget {
+            path: current_file.to_path_buf(),
+            symbol: callee.callee.clone(),
+        });
+        return Ok(ResolvedTraceCall {
+            interface_target,
+            implementation_targets,
+            direct_targets,
+        });
+    }
+
+    let candidate_path = if std::path::Path::new(&callee.path).is_absolute() {
+        std::path::PathBuf::from(&callee.path)
+    } else {
+        current_file
+            .parent()
+            .map(|parent| parent.join(&callee.path))
+            .unwrap_or_else(|| workspace_root.join(&callee.path))
+    };
+
+    if resolve_symbol_metadata(
+        workspace_root,
+        &candidate_path,
+        &callee.callee,
+        analyzer_language,
+    )?
+    .is_some()
+    {
+        direct_targets.push(ResolvedTraceTarget {
+            path: candidate_path,
+            symbol: callee.callee.clone(),
+        });
+    }
+
+    Ok(ResolvedTraceCall {
+        interface_target,
+        implementation_targets,
+        direct_targets,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct SymbolMetadata {
+    symbol: String,
+    kind: String,
+    line: u32,
+    line_end: u32,
+}
+
+fn resolve_symbol_metadata(
+    workspace_root: &std::path::Path,
+    file_path: &std::path::Path,
+    symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+) -> Result<Option<SymbolMetadata>, EngineError> {
+    let public = public_path(workspace_root, file_path);
+    let result = find_symbol(
+        workspace_root.to_string_lossy().as_ref(),
+        FindSymbolRequestPayload {
+            symbol: symbol.to_string(),
+            path: Some(public),
+            analyzer_language: analyzer_language_name(analyzer_language).to_string(),
+            public_language_filter: None,
+            kind: "any".to_string(),
+            match_mode: "exact".to_string(),
+            limit: 50,
+        },
+    )?;
+
+    Ok(result
+        .items
+        .into_iter()
+        .find(|item| item.symbol == symbol)
+        .map(|item| SymbolMetadata {
+            symbol: item.symbol,
+            kind: item.kind,
+            line: item.line,
+            line_end: item.line_end,
+        }))
+}
+
+fn merge_trace_node(
+    grouped: &mut BTreeMap<(String, String), TraceFlowNode>,
+    mut candidate: TraceFlowNode,
+) {
+    let key = (candidate.path.clone(), candidate.symbol.clone());
+    if let Some(existing) = grouped.get_mut(&key) {
+        merge_vias(existing, candidate.via.take());
+        for child in candidate.callers.drain(..) {
+            merge_child_node(existing, child);
         }
+    } else {
+        grouped.insert(key, candidate);
+    }
+}
+
+fn merge_child_node(parent: &mut TraceFlowNode, child: TraceFlowNode) {
+    if let Some(existing) = parent
+        .callers
+        .iter_mut()
+        .find(|current| current.path == child.path && current.symbol == child.symbol)
+    {
+        merge_vias(existing, child.via);
+        for nested in child.callers {
+            merge_child_node(existing, nested);
+        }
+    } else {
+        parent.callers.push(child);
+        parent.callers.sort_by(compare_trace_nodes);
+    }
+}
+
+fn merge_vias(node: &mut TraceFlowNode, incoming: Option<Vec<TraceFlowVia>>) {
+    let Some(incoming) = incoming else {
+        return;
+    };
+
+    let vias = node.via.get_or_insert_with(Vec::new);
+    for via in incoming {
+        if !vias.iter().any(|current| {
+            current.line == via.line
+                && current.column == via.column
+                && current.snippet == via.snippet
+                && current.receiver_type == via.receiver_type
+        }) {
+            vias.push(via);
+        }
+    }
+    vias.sort_by(|left, right| {
+        (left.line, left.column.unwrap_or(0)).cmp(&(right.line, right.column.unwrap_or(0)))
+    });
+}
+
+fn sort_trace_node(node: &mut TraceFlowNode) {
+    if let Some(vias) = node.via.as_mut() {
+        vias.sort_by(|left, right| {
+            (left.line, left.column.unwrap_or(0)).cmp(&(right.line, right.column.unwrap_or(0)))
+        });
+    }
+
+    node.callers.sort_by(compare_trace_nodes);
+    for child in &mut node.callers {
+        sort_trace_node(child);
+    }
+}
+
+fn compare_trace_nodes(left: &TraceFlowNode, right: &TraceFlowNode) -> std::cmp::Ordering {
+    let left_line = left
+        .via
+        .as_ref()
+        .and_then(|vias| vias.first())
+        .map(|via| via.line)
+        .unwrap_or(left.range_line.init);
+    let right_line = right
+        .via
+        .as_ref()
+        .and_then(|vias| vias.first())
+        .map(|via| via.line)
+        .unwrap_or(right.range_line.init);
+
+    (left_line, left.range_line.init, &left.path, &left.symbol).cmp(&(
+        right_line,
+        right.range_line.init,
+        &right.path,
+        &right.symbol,
+    ))
+}
+
+fn compact_snippet(snippet: &str) -> String {
+    snippet.lines().next().unwrap_or("").trim().to_string()
+}
+
+fn classify_trace_node_kind(
+    path: &std::path::Path,
+    java_index: Option<&JavaProjectIndex>,
+) -> String {
+    if path.to_string_lossy().ends_with(".java") {
+        let normalized = path.to_string_lossy().replace('\\', "/");
+        if let Some(index) = java_index {
+            if let Some(ctx) = index.file_contexts.get(&normalized) {
+                if ctx.is_interface {
+                    return "interface-method".to_string();
+                }
+                if !ctx.implements_interfaces.is_empty() {
+                    return "implementation-method".to_string();
+                }
+                return "class-method".to_string();
+            }
+        }
+        return "class-method".to_string();
+    }
+
+    let path = path.to_string_lossy().replace('\\', "/");
+    if path.contains("/routes/") {
+        "route".to_string()
+    } else {
+        "function".to_string()
+    }
+}
+
+fn qualify_symbol_name(
+    java_index: Option<&JavaProjectIndex>,
+    file_path: &std::path::Path,
+    symbol: &str,
+) -> String {
+    if !file_path.to_string_lossy().ends_with(".java") {
+        return symbol.to_string();
+    }
+
+    let Some(index) = java_index else {
+        return symbol.to_string();
+    };
+    let key = file_path.to_string_lossy().replace('\\', "/");
+    let Some(ctx) = index.file_contexts.get(&key) else {
+        return symbol.to_string();
+    };
+    if ctx.class_name.is_empty() {
+        symbol.to_string()
+    } else {
+        format!("{}#{}", ctx.class_name, symbol)
+    }
+}
+
+fn analyzer_language_name(language: AnalyzerLanguage) -> &'static str {
+    match language {
+        AnalyzerLanguage::Auto => "auto",
+        AnalyzerLanguage::Java => "java",
+        AnalyzerLanguage::Python => "python",
+        AnalyzerLanguage::Rust => "rust",
+        AnalyzerLanguage::Typescript => "typescript",
+    }
+}
+
+fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError> {
+    match value {
+        "auto" => Ok(AnalyzerLanguage::Auto),
+        "java" => Ok(AnalyzerLanguage::Java),
+        "python" => Ok(AnalyzerLanguage::Python),
+        "rust" => Ok(AnalyzerLanguage::Rust),
+        "typescript" => Ok(AnalyzerLanguage::Typescript),
+        other => Err(EngineError::invalid_request(format!(
+            "Unsupported analyzerLanguage '{}'.",
+            other
+        ))),
     }
 }

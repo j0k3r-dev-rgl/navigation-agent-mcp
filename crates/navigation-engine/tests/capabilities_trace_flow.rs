@@ -36,18 +36,11 @@ fn traces_callees_from_the_entrypoint_symbol() {
         Some("src/routes/dashboard.tsx")
     );
     assert!(!result.truncated);
-    // trace_flow traces outgoing callees — loader calls getData, so at least 1 callee
-    assert!(
-        result.total_matched >= 1,
-        "expected at least 1 callee, got {}",
-        result.total_matched
-    );
-    assert_eq!(result.total_matched, result.callees.len());
-    // The callee should be getData
-    let callee_names: Vec<&str> = result.callees.iter().map(|c| c.callee.as_str()).collect();
+    let root = result.root.expect("expected root node");
+    let callee_names: Vec<&str> = root.callers.iter().map(|c| c.symbol.as_str()).collect();
     assert!(
         callee_names.contains(&"getData"),
-        "expected 'getData' in callees, got {:?}",
+        "expected 'getData' in callers, got {:?}",
         callee_names
     );
 }
@@ -79,9 +72,9 @@ fn returns_empty_result_when_the_symbol_has_no_callees() {
         result.resolved_path.as_deref(),
         Some("src/routes/dashboard.tsx")
     );
-    assert_eq!(result.total_matched, 0);
-    assert!(result.callees.is_empty());
     assert!(!result.truncated);
+    let root = result.root.expect("expected root node");
+    assert!(root.callers.is_empty());
 }
 
 #[test]
@@ -115,22 +108,13 @@ public class Factorial {
     )
     .unwrap();
 
-    // Find the recursive callee and check it's marked as recursive
-    let recursive_callees: Vec<_> = result.callees.iter().filter(|c| c.recursive).collect();
-
-    assert!(
-        !recursive_callees.is_empty(),
-        "expected at least one recursive callee, got {:?}",
-        result.callees
-    );
-
-    // The recursive call should be to 'factorial'
-    let has_recursive_factorial = recursive_callees.iter().any(|c| c.callee == "factorial");
-    assert!(
-        has_recursive_factorial,
-        "expected recursive call to 'factorial', got {:?}",
-        recursive_callees
-    );
+    let root = result.root.expect("expected root node");
+    let recursive_child = root
+        .callers
+        .iter()
+        .find(|child| child.symbol.ends_with("factorial"))
+        .expect("expected recursive factorial child");
+    assert!(recursive_child.callers.is_empty());
 }
 
 #[test]
@@ -165,7 +149,7 @@ fn detects_infrastructure_file_pattern() {
 }
 
 #[test]
-fn callees_have_recursive_field_default() {
+fn tree_nodes_include_range_line_and_via() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
     std::fs::create_dir_all(workspace.path().join("src/lib")).unwrap();
@@ -193,13 +177,161 @@ fn callees_have_recursive_field_default() {
     )
     .unwrap();
 
-    // All callees should have the recursive field (defaults to false for non-recursive)
-    for callee in &result.callees {
-        // The field exists and is a boolean - for non-recursive calls it should be false
-        assert!(
-            !callee.recursive,
-            "Non-recursive callee '{}' should have recursive=false",
-            callee.callee
-        );
+    let root = result.root.expect("expected root node");
+    assert!(root.range_line.init > 0);
+    let child = root.callers.iter().find(|c| c.symbol == "getData").unwrap();
+    assert!(child.range_line.end >= child.range_line.init);
+    assert!(child.via.as_ref().is_some_and(|via| !via.is_empty()));
+}
+
+#[test]
+fn nests_java_interface_implementations_under_ports() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("src/modules/sample/infrastructure/web"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("src/modules/sample/application/ports/input"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("src/modules/sample/application/ports/output"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("src/modules/sample/application/use_cases/command"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("src/modules/sample/infrastructure/persistence/dao"),
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/modules/sample/infrastructure/web/SampleController.java"),
+        r#"
+package sample.infrastructure.web;
+import sample.application.ports.input.CreateThing;
+public class SampleController {
+    private final CreateThing createThingPort;
+    public void create() {
+        createThingPort.create();
     }
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/modules/sample/application/ports/input/CreateThing.java"),
+        r#"
+package sample.application.ports.input;
+public interface CreateThing {
+    void create();
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/modules/sample/application/ports/output/CreateThingRepository.java"),
+        r#"
+package sample.application.ports.output;
+public interface CreateThingRepository {
+    void save();
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/modules/sample/application/use_cases/command/CreateThingUseCase.java"),
+        r#"
+package sample.application.use_cases.command;
+import sample.application.ports.input.CreateThing;
+import sample.application.ports.output.CreateThingRepository;
+public class CreateThingUseCase implements CreateThing {
+    private final CreateThingRepository repository;
+    public void create() {
+        repository.save();
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/modules/sample/infrastructure/persistence/dao/CreateThingAdapter.java"),
+        r#"
+package sample.infrastructure.persistence.dao;
+import sample.application.ports.output.CreateThingRepository;
+public class CreateThingAdapter implements CreateThingRepository {
+    public void save() {
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/modules/sample/infrastructure/web/SampleController.java".to_string(),
+            symbol: "create".to_string(),
+            analyzer_language: "java".to_string(),
+            public_language_filter: None,
+            max_depth: Some(6),
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let input_port = root
+        .callers
+        .iter()
+        .find(|child| child.symbol.ends_with("CreateThing#create"))
+        .expect("expected input port child");
+    assert_eq!(input_port.kind, "interface-method");
+    let use_case = input_port
+        .callers
+        .iter()
+        .find(|child| child.symbol.ends_with("CreateThingUseCase#create"))
+        .expect("expected use case nested under input port");
+    assert_eq!(use_case.kind, "implementation-method");
+    let output_port = use_case
+        .callers
+        .iter()
+        .find(|child| child.symbol.ends_with("CreateThingRepository#save"))
+        .expect("expected output port under use case");
+    assert_eq!(output_port.kind, "interface-method");
+    let adapter = output_port
+        .callers
+        .iter()
+        .find(|child| child.symbol.ends_with("CreateThingAdapter#save"))
+        .expect("expected adapter nested under output port");
+
+    assert!(adapter.path.ends_with("CreateThingAdapter.java"));
+    assert_eq!(adapter.kind, "implementation-method");
+    assert_eq!(root.callers.first().map(|n| n.range_line.init), Some(4));
 }

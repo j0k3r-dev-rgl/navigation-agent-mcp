@@ -194,39 +194,40 @@ pub struct TraceFlowRequestPayload {
     pub max_depth: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "camelCase")]
-pub struct TraceSymbolItem {
-    pub path: String,
-    pub language: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceFlowResult {
     pub resolved_path: Option<String>,
-    pub items: Vec<TraceSymbolItem>,
-    pub total_matched: usize,
     pub truncated: bool,
-    pub callees: Vec<CalleeItem>,
+    pub root: Option<TraceFlowNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CalleeItem {
-    pub path: String,
+pub struct TraceFlowLineRange {
+    pub init: u32,
+    pub end: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceFlowVia {
     pub line: u32,
-    pub end_line: u32,
     pub column: Option<u32>,
-    pub callee: String,
-    pub callee_symbol: Option<String>,
-    pub relation: String,
-    pub language: Option<String>,
     pub snippet: Option<String>,
-    pub depth: u32,
-    pub call_chain: Vec<String>,
-    #[serde(default)]
-    pub recursive: bool,
+    pub receiver_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceFlowNode {
+    pub symbol: String,
+    pub path: String,
+    pub kind: String,
+    pub range_line: TraceFlowLineRange,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<Vec<TraceFlowVia>>,
+    pub callers: Vec<TraceFlowNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
