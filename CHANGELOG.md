@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.3.3...navigation-agent-mcp-v0.3.4) (2026-04-02)
+
+
+### Bug Fixes
+
+* align release versions to 0.3.4 ([9374ffa](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/9374ffafc75bafad0a81e384f51fb064c49becad))
+* align release-please to 0.3.4 ([0cc5a74](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/0cc5a7479b25cd49681829619903d42516fd9dcc))
+* anchor release-please changelog to v0.3.3 ([67e3f30](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/67e3f307fb0f3d3b24f05905bbcae9456c47e56a))
+
 ## [0.3.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.2.1...navigation-agent-mcp-v0.3.0) (2026-04-01)
 
 
