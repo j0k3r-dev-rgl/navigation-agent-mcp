@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.3...v0.3.4) (2026-04-02)
+
+
+### Bug Fixes
+
+* align release versions to 0.3.4 ([9374ffa](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/9374ffafc75bafad0a81e384f51fb064c49becad))
+* align release-please to 0.3.4 ([0cc5a74](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/0cc5a7479b25cd49681829619903d42516fd9dcc))
+* align release-please version updates ([2280755](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/2280755cc25c64a7848478d4a020ddef5ed431d1))
+* anchor release-please changelog to v0.3.3 ([67e3f30](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/67e3f307fb0f3d3b24f05905bbcae9456c47e56a))
+* match release-please tags to v format ([586de0c](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/586de0c6a6ae0fbc7217dd9fcfa90c10a77d54be))
+* remove temporary release-please overrides ([311f99f](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/311f99ff42a29e5908728ad41934722ea6c738f7))
+* restore release manifest to 0.3.3 ([1829441](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/18294414204a2e125cf481beb19ef1d09f72a18d))
+
 ## [0.3.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/navigation-agent-mcp-v0.2.1...navigation-agent-mcp-v0.3.0) (2026-04-01)
 
 
