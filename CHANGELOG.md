@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.4...v0.3.5) (2026-04-02)
+
+
+### Bug Fixes
+
+* improve analyzer support and sync release baseline ([1833220](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/18332203946ab534bec01e7824e8c09a6965705d))
+
 ## [0.3.4](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.3...v0.3.4) (2026-04-02)
 
 
