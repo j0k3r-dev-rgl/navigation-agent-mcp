@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use super::go::GoAnalyzer;
 use super::java::JavaAnalyzer;
 use super::language_analyzer::LanguageAnalyzer;
 use super::python::PythonAnalyzer;
@@ -16,6 +17,7 @@ pub struct AnalyzerRegistry {
 impl AnalyzerRegistry {
     pub fn new() -> Self {
         let mut registry = Self::default();
+        registry.register(Box::new(GoAnalyzer));
         registry.register(Box::new(JavaAnalyzer));
         registry.register(Box::new(PythonAnalyzer));
         registry.register(Box::new(RustAnalyzer));

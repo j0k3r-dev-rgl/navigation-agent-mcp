@@ -7,6 +7,7 @@ fn traces_callees_from_the_entrypoint_symbol() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
     std::fs::create_dir_all(workspace.path().join("src/lib")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/utils")).unwrap();
     // loader calls getData which is defined in src/lib/data.ts
     std::fs::write(
         workspace.path().join("src/routes/dashboard.tsx"),
@@ -15,7 +16,12 @@ fn traces_callees_from_the_entrypoint_symbol() {
     .unwrap();
     std::fs::write(
         workspace.path().join("src/lib/data.ts"),
-        "export function getData() { return []; }\n",
+        "import { formatData } from '../utils/format';\nexport function getData() { return formatData([]); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("src/utils/format.ts"),
+        "export function formatData(input: unknown[]) { return input; }\n",
     )
     .unwrap();
 
@@ -36,13 +42,19 @@ fn traces_callees_from_the_entrypoint_symbol() {
         Some("src/routes/dashboard.tsx")
     );
     assert!(!result.truncated);
-    let root = result.root.expect("expected root node");
-    let callee_names: Vec<&str> = root.callers.iter().map(|c| c.symbol.as_str()).collect();
-    assert!(
-        callee_names.contains(&"getData"),
-        "expected 'getData' in callers, got {:?}",
-        callee_names
-    );
+    let root = result.root.clone().expect("expected root node");
+    let get_data = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "getData")
+        .expect("expected getData child");
+    assert_eq!(get_data.path, "src/lib/data.ts");
+    let format_data = get_data
+        .callers
+        .iter()
+        .find(|c| c.symbol == "formatData")
+        .expect("expected nested formatData child");
+    assert_eq!(format_data.path, "src/utils/format.ts");
 }
 
 #[test]
@@ -73,7 +85,7 @@ fn returns_empty_result_when_the_symbol_has_no_callees() {
         Some("src/routes/dashboard.tsx")
     );
     assert!(!result.truncated);
-    let root = result.root.expect("expected root node");
+    let root = result.root.clone().expect("expected root node");
     assert!(root.callers.is_empty());
 }
 
@@ -108,7 +120,7 @@ public class Factorial {
     )
     .unwrap();
 
-    let root = result.root.expect("expected root node");
+    let root = result.root.clone().expect("expected root node");
     let recursive_child = root
         .callers
         .iter()
@@ -182,6 +194,131 @@ fn tree_nodes_include_range_line_and_via() {
     let child = root.callers.iter().find(|c| c.symbol == "getData").unwrap();
     assert!(child.range_line.end >= child.range_line.init);
     assert!(child.via.as_ref().is_some_and(|via| !via.is_empty()));
+}
+
+#[test]
+fn traces_javascript_imported_functions() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/lib")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/routes/page.js"),
+        "import { submitForm } from '../lib/actions.js';\nexport async function action() { return submitForm(); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib/actions.js"),
+        "export function submitForm() { return ok(); }\nfunction ok() { return true; }\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/routes/page.js".to_string(),
+            symbol: "action".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let submit_form = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "submitForm")
+        .expect("expected submitForm child");
+    assert_eq!(submit_form.path, "src/lib/actions.js");
+    let ok = submit_form
+        .callers
+        .iter()
+        .find(|c| c.symbol == "ok")
+        .expect("expected nested ok child");
+    assert_eq!(ok.path, "src/lib/actions.js");
+}
+
+#[test]
+fn traces_exported_destructured_symbols_to_their_module() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/services")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/routes/page.tsx"),
+        "import { getSession, commitSession } from '../services/cookies.service.server';\nexport async function action(request: Request) {\n  const session = await getSession(request.headers.get('Cookie'));\n  return { headers: { 'Set-Cookie': await commitSession(session) } };\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("src/services/cookies.service.server.ts"),
+        "const authSessionStorage = createCookieSessionStorage({});\nexport const { getSession, commitSession, destroySession } = authSessionStorage;\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/routes/page.tsx".to_string(),
+            symbol: "action".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.clone().expect("expected root node");
+    let get_session = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "getSession")
+        .expect("expected getSession child");
+    assert_eq!(get_session.path, "src/services/cookies.service.server.ts");
+    let rendered = serde_json::to_string_pretty(&result).unwrap();
+    assert!(rendered.contains("getSession"), "tree was: {rendered}");
+}
+
+#[test]
+fn traces_nested_call_expressions_at_any_depth() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/lib")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/routes/page.tsx"),
+        "import { first } from '../lib/first';\nimport { second } from '../lib/second';\nexport async function action() { return wrap({ nested: await first(second()) }); }\nfunction wrap(input: unknown) { return input; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib/first.ts"),
+        "export async function first(value: unknown) { return value; }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib/second.ts"),
+        "export function second() { return 1; }\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/routes/page.tsx".to_string(),
+            symbol: "action".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(names.contains(&"wrap"), "names were: {names:?}");
+    assert!(names.contains(&"first"), "names were: {names:?}");
+    assert!(names.contains(&"second"), "names were: {names:?}");
 }
 
 #[test]
@@ -334,4 +471,148 @@ public class CreateThingAdapter implements CreateThingRepository {
     assert!(adapter.path.ends_with("CreateThingAdapter.java"));
     assert_eq!(adapter.kind, "implementation-method");
     assert_eq!(root.callers.first().map(|n| n.range_line.init), Some(4));
+}
+
+#[test]
+fn traces_rust_impl_methods_with_qualified_symbol() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib.rs"),
+        "struct Builder;\nimpl Builder {\n    fn build() {\n        Self::new_empty();\n        Self::is_empty();\n    }\n\n    fn new_empty() {}\n    fn is_empty() {}\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/lib.rs".to_string(),
+            symbol: "Builder::build".to_string(),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(
+        names.contains(&"Builder::new_empty"),
+        "names were: {names:?}"
+    );
+    assert!(
+        names.contains(&"Builder::is_empty"),
+        "names were: {names:?}"
+    );
+}
+
+#[test]
+fn traces_go_handler_flow_across_service_calls() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/http/handlers")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/service")).unwrap();
+    std::fs::write(
+        workspace.path().join("go.mod"),
+        "module example/app\n\ngo 1.23.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/service/user_service.go"),
+        "package service\n\ntype UserService struct {}\n\nfunc (s *UserService) CreateUser() {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/http/handlers/user_handler.go"),
+        "package handlers\n\nimport \"example/app/internal/service\"\n\ntype UserHandler struct { service *service.UserService }\n\nfunc (h *UserHandler) CreateUser() {\n    h.service.CreateUser()\n    writeJSON()\n}\n\nfunc writeJSON() {}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "internal/http/handlers/user_handler.go".to_string(),
+            symbol: "UserHandler.CreateUser".to_string(),
+            analyzer_language: "go".to_string(),
+            public_language_filter: Some("go".to_string()),
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(
+        names.contains(&"UserService.CreateUser"),
+        "names were: {names:?}"
+    );
+    assert!(names.contains(&"writeJSON"), "names were: {names:?}");
+}
+
+#[test]
+fn traces_rust_instance_method_calls_from_local_bindings() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib.rs"),
+        "struct Builder;\nimpl Builder {\n    fn build() {\n        let index = Self::new_empty();\n        index.scan_project();\n    }\n\n    fn new_empty() -> Self { Builder }\n    fn scan_project(&self) {}\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/lib.rs".to_string(),
+            symbol: "Builder::build".to_string(),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(
+        names.contains(&"Builder::new_empty"),
+        "names were: {names:?}"
+    );
+    assert!(
+        names.contains(&"Builder::scan_project"),
+        "names were: {names:?}"
+    );
+}
+
+#[test]
+fn traces_rust_instance_method_calls_from_explicit_type_factory_bindings() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib.rs"),
+        "struct JavaProjectIndex;\nimpl JavaProjectIndex {\n    fn new_empty() -> Self { JavaProjectIndex }\n    fn scan_project(&self) {}\n}\n\nstruct Builder;\nimpl Builder {\n    fn build() {\n        let index = JavaProjectIndex::new_empty();\n        index.scan_project();\n    }\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/lib.rs".to_string(),
+            symbol: "Builder::build".to_string(),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(
+        names.contains(&"JavaProjectIndex::new_empty"),
+        "names were: {names:?}"
+    );
+    assert!(
+        names.contains(&"JavaProjectIndex::scan_project"),
+        "names were: {names:?}"
+    );
 }

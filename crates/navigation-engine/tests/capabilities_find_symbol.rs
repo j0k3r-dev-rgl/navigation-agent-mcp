@@ -240,6 +240,36 @@ fn returns_python_exact_method_without_non_exact_functions() {
 }
 
 #[test]
+fn returns_rust_impl_methods_with_owner_qualified_name() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+    std::fs::write(
+        workspace.path().join("src/lib.rs"),
+        "struct Runner;\nimpl Runner {\n    fn build(&self) {}\n}\n",
+    )
+    .unwrap();
+
+    let result = find_symbol(
+        workspace.path().to_string_lossy().as_ref(),
+        FindSymbolRequestPayload {
+            symbol: "Runner::build".to_string(),
+            path: Some("src".to_string()),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: Some("rust".to_string()),
+            kind: "method".to_string(),
+            match_mode: "exact".to_string(),
+            limit: 50,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.total_matched, 1);
+    assert_eq!(result.items[0].symbol, "Runner::build");
+    assert_eq!(result.items[0].kind, "method");
+    assert_eq!(result.items[0].path, "src/lib.rs");
+}
+
+#[test]
 fn supports_python_fuzzy_matching_kind_path_truncation_and_deduplication() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("py/in_scope")).unwrap();
@@ -407,7 +437,7 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     let exact_method = find_symbol(
         workspace.path().to_string_lossy().as_ref(),
         FindSymbolRequestPayload {
-            symbol: "run".to_string(),
+            symbol: "RunService::run".to_string(),
             path: Some("rust/in_scope".to_string()),
             analyzer_language: "rust".to_string(),
             public_language_filter: Some("rust".to_string()),
@@ -418,7 +448,7 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     )
     .unwrap();
     assert_eq!(exact_method.total_matched, 1);
-    assert_eq!(exact_method.items[0].symbol, "run");
+    assert_eq!(exact_method.items[0].symbol, "RunService::run");
     assert_eq!(exact_method.items[0].kind, "method");
 
     let fuzzy = find_symbol(
@@ -452,10 +482,20 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
             ("rust/in_scope/models.rs", 4, "LoadResult", "type"),
             ("rust/in_scope/models.rs", 5, "load", "function"),
             ("rust/in_scope/models.rs", 6, "load_data", "function"),
-            ("rust/in_scope/models.rs", 9, "load_cached", "method"),
+            (
+                "rust/in_scope/models.rs",
+                9,
+                "UserId::load_cached",
+                "method"
+            ),
             ("rust/in_scope/service.rs", 1, "Loader", "type"),
             ("rust/in_scope/service.rs", 2, "LoaderFactory", "type"),
-            ("rust/in_scope/service.rs", 7, "load_attr", "method"),
+            (
+                "rust/in_scope/service.rs",
+                7,
+                "RunService::load_attr",
+                "method"
+            ),
         ]
     );
 
@@ -498,12 +538,12 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     assert!(kinds.contains(&("Runner", "interface")));
     assert!(kinds.contains(&("LoadResult", "type")));
     assert!(kinds.contains(&("load", "function")));
-    assert!(kinds.contains(&("load_cached", "method")));
+    assert!(kinds.contains(&("UserId::load_cached", "method")));
     assert_eq!(
         kind_map
             .items
             .iter()
-            .filter(|item| item.symbol == "load_attr")
+            .filter(|item| item.symbol == "RunService::load_attr")
             .count(),
         0
     );
@@ -528,7 +568,7 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     let attributed_impl = find_symbol(
         workspace.path().to_string_lossy().as_ref(),
         FindSymbolRequestPayload {
-            symbol: "load_attr".to_string(),
+            symbol: "RunService::load_attr".to_string(),
             path: Some("rust/in_scope".to_string()),
             analyzer_language: "rust".to_string(),
             public_language_filter: Some("rust".to_string()),
@@ -539,6 +579,7 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     )
     .unwrap();
     assert_eq!(attributed_impl.total_matched, 1);
+    assert_eq!(attributed_impl.items[0].symbol, "RunService::load_attr");
     assert_eq!(attributed_impl.items[0].kind, "method");
 
     let unsupported_only = find_symbol(

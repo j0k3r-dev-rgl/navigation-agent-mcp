@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum AnalyzerLanguage {
     Auto,
+    Go,
     Java,
     Python,
     Rust,
@@ -111,6 +112,7 @@ pub fn infer_public_language(path: &Path) -> Option<String> {
     match file_extension(path).as_deref() {
         Some(".ts") | Some(".tsx") => Some("typescript".to_string()),
         Some(".js") | Some(".jsx") => Some("javascript".to_string()),
+        Some(".go") => Some("go".to_string()),
         Some(".java") => Some("java".to_string()),
         Some(".py") => Some("python".to_string()),
         Some(".rs") => Some("rust".to_string()),

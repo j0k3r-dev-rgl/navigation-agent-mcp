@@ -63,9 +63,7 @@ struct CalleeContext<'a> {
 }
 
 #[derive(Clone)]
-struct FunctionContextForCallee {
-    _depth: usize,
-}
+struct FunctionContextForCallee;
 
 pub(super) fn find_callees(
     path: &Path,
@@ -674,8 +672,8 @@ fn collect_callees(
         _ => false,
     };
 
-    let next_function = if is_target_function {
-        Some(FunctionContextForCallee { _depth: 0 })
+    let next_function = if is_target_function || current_function.is_some() {
+        Some(FunctionContextForCallee)
     } else {
         current_function.clone()
     };
@@ -702,7 +700,7 @@ fn extract_callee(node: Node, source: &[u8], ctx: &CalleeContext) -> Option<Call
 
     let callee = node.child_by_field_name("function")?;
 
-    let (callee_name, receiver_type, _root_object) = match callee.kind() {
+    let (callee_name, receiver_type, root_object) = match callee.kind() {
         "identifier" => {
             let name = node_text(callee, source)?;
             (name, None, None)
@@ -730,9 +728,16 @@ fn extract_callee(node: Node, source: &[u8], ctx: &CalleeContext) -> Option<Call
     }
 
     let end_line = (node.end_position().row + 1) as u32;
+    let resolved_path = resolve_callee_path(
+        ctx,
+        &callee_name,
+        receiver_type.as_deref(),
+        root_object.as_deref(),
+    )
+    .unwrap_or_else(|| ctx.current_file.to_string_lossy().replace('\\', "/"));
 
     Some(CalleeDefinition {
-        path: ctx.current_file.to_string_lossy().replace('\\', "/"),
+        path: resolved_path,
         line: (node.start_position().row + 1) as u32,
         end_line,
         column: Some((node.start_position().column + 1) as u32),
@@ -743,6 +748,157 @@ fn extract_callee(node: Node, source: &[u8], ctx: &CalleeContext) -> Option<Call
         language: ctx.public_language.map(str::to_string),
         snippet: node_text(node, source),
     })
+}
+
+fn resolve_callee_path(
+    ctx: &CalleeContext,
+    callee_name: &str,
+    receiver_type: Option<&str>,
+    root_object: Option<&str>,
+) -> Option<String> {
+    let file_ctx = ctx.file_context.as_ref()?;
+
+    if let Some(receiver) = receiver_type {
+        if let Some(path) = local_import_path(file_ctx, receiver) {
+            return Some(path);
+        }
+    }
+
+    if let Some(root) = root_object {
+        if let Some(path) = local_import_path(file_ctx, root) {
+            return Some(path);
+        }
+    }
+
+    if let Some(path) = local_import_path(file_ctx, callee_name) {
+        return Some(path);
+    }
+
+    if let Some(path) = find_exported_destructured_symbol_path(ctx.current_file, callee_name) {
+        return Some(path);
+    }
+
+    if file_ctx.local_definitions.contains(callee_name) {
+        return Some(ctx.current_file.to_string_lossy().replace('\\', "/"));
+    }
+
+    None
+}
+
+fn local_import_path(file_ctx: &TypeScriptFileContext, name: &str) -> Option<String> {
+    match file_ctx.imports.get(name) {
+        Some(ResolvedImport::Local { path }) => Some(path.clone()),
+        _ => None,
+    }
+}
+
+fn find_exported_destructured_symbol_path(current_file: &Path, symbol: &str) -> Option<String> {
+    let source = std::fs::read_to_string(current_file).ok()?;
+    let language = parser_language_for_path(current_file)?;
+    let mut parser = Parser::new();
+    parser.set_language(&language.into()).ok()?;
+    let tree = parser.parse(&source, None)?;
+
+    if has_exported_destructured_symbol(tree.root_node(), source.as_bytes(), symbol) {
+        return Some(current_file.to_string_lossy().replace('\\', "/"));
+    }
+
+    None
+}
+
+fn has_exported_destructured_symbol(root: Node, source: &[u8], symbol: &str) -> bool {
+    for index in 0..root.named_child_count() {
+        let Some(child) = root.named_child(index) else {
+            continue;
+        };
+
+        if !matches!(child.kind(), "export_statement" | "export_declaration") {
+            continue;
+        }
+
+        if exported_destructured_symbol_in_node(child, source, symbol) {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn exported_destructured_symbol_in_node(node: Node, source: &[u8], symbol: &str) -> bool {
+    for index in 0..node.named_child_count() {
+        let Some(child) = node.named_child(index) else {
+            continue;
+        };
+
+        match child.kind() {
+            "lexical_declaration" | "variable_declaration" => {
+                if destructured_symbol_in_declaration(child, source, symbol) {
+                    return true;
+                }
+            }
+            "variable_declarator" => {
+                if destructured_symbol_in_variable_declarator(child, source, symbol) {
+                    return true;
+                }
+            }
+            _ => {
+                if exported_destructured_symbol_in_node(child, source, symbol) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
+fn destructured_symbol_in_declaration(node: Node, source: &[u8], symbol: &str) -> bool {
+    for index in 0..node.named_child_count() {
+        let Some(child) = node.named_child(index) else {
+            continue;
+        };
+        if child.kind() == "variable_declarator"
+            && destructured_symbol_in_variable_declarator(child, source, symbol)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn destructured_symbol_in_variable_declarator(node: Node, source: &[u8], symbol: &str) -> bool {
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return false;
+    };
+    if name_node.kind() != "object_pattern" {
+        return false;
+    }
+
+    object_pattern_contains_symbol(name_node, source, symbol)
+}
+
+fn object_pattern_contains_symbol(node: Node, source: &[u8], symbol: &str) -> bool {
+    match node.kind() {
+        "shorthand_property_identifier_pattern" | "identifier" => {
+            return node_text(node, source).as_deref() == Some(symbol);
+        }
+        "pair_pattern" => {
+            if let Some(value) = node.child_by_field_name("value") {
+                return object_pattern_contains_symbol(value, source, symbol);
+            }
+        }
+        _ => {}
+    }
+
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            if object_pattern_contains_symbol(child, source, symbol) {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 fn find_root_object(member_expr: Node, source: &[u8]) -> Option<String> {

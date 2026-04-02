@@ -895,6 +895,22 @@ fn resolve_callee_targets(
             path: candidate_path,
             symbol: callee.callee.clone(),
         });
+    } else if analyzer_language == AnalyzerLanguage::Go {
+        if let Some(global_match) =
+            resolve_symbol_globally(workspace_root, &callee.callee, analyzer_language)?
+        {
+            direct_targets.push(global_match);
+        } else if candidate_path.exists() {
+            direct_targets.push(ResolvedTraceTarget {
+                path: candidate_path,
+                symbol: callee.callee.clone(),
+            });
+        }
+    } else if candidate_path.exists() {
+        direct_targets.push(ResolvedTraceTarget {
+            path: candidate_path,
+            symbol: callee.callee.clone(),
+        });
     }
 
     Ok(ResolvedTraceCall {
@@ -902,6 +918,34 @@ fn resolve_callee_targets(
         implementation_targets,
         direct_targets,
     })
+}
+
+fn resolve_symbol_globally(
+    workspace_root: &std::path::Path,
+    symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+) -> Result<Option<ResolvedTraceTarget>, EngineError> {
+    let result = find_symbol(
+        workspace_root.to_string_lossy().as_ref(),
+        FindSymbolRequestPayload {
+            symbol: symbol.to_string(),
+            path: None,
+            analyzer_language: analyzer_language_name(analyzer_language).to_string(),
+            public_language_filter: None,
+            kind: "any".to_string(),
+            match_mode: "exact".to_string(),
+            limit: 10,
+        },
+    )?;
+
+    Ok(result
+        .items
+        .into_iter()
+        .next()
+        .map(|item| ResolvedTraceTarget {
+            path: workspace_root.join(item.path),
+            symbol: item.symbol,
+        }))
 }
 
 #[derive(Debug, Clone)]
@@ -1055,12 +1099,7 @@ fn classify_trace_node_kind(
         return "class-method".to_string();
     }
 
-    let path = path.to_string_lossy().replace('\\', "/");
-    if path.contains("/routes/") {
-        "route".to_string()
-    } else {
-        "function".to_string()
-    }
+    "function".to_string()
 }
 
 fn qualify_symbol_name(
@@ -1089,6 +1128,7 @@ fn qualify_symbol_name(
 fn analyzer_language_name(language: AnalyzerLanguage) -> &'static str {
     match language {
         AnalyzerLanguage::Auto => "auto",
+        AnalyzerLanguage::Go => "go",
         AnalyzerLanguage::Java => "java",
         AnalyzerLanguage::Python => "python",
         AnalyzerLanguage::Rust => "rust",
@@ -1099,6 +1139,7 @@ fn analyzer_language_name(language: AnalyzerLanguage) -> &'static str {
 fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError> {
     match value {
         "auto" => Ok(AnalyzerLanguage::Auto),
+        "go" => Ok(AnalyzerLanguage::Go),
         "java" => Ok(AnalyzerLanguage::Java),
         "python" => Ok(AnalyzerLanguage::Python),
         "rust" => Ok(AnalyzerLanguage::Rust),

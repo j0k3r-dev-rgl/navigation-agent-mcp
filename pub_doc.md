@@ -2,162 +2,291 @@
 
 ## Objetivo
 
-Documentar el flujo correcto para publicar una nueva versión en GitHub Releases y npm.
+Dejar un flujo simple y correcto para publicar nuevas versiones en GitHub Releases y npm sin desalinear:
+
+- `package.json`
+- `package-lock.json`
+- `packages/*/package.json`
+- `crates/navigation-engine/Cargo.toml`
+- `.release-please-manifest.json`
+- tags y releases de GitHub
+- versiones publicadas en npm
 
 ---
 
-## Prerrequisitos
+## Regla principal
 
-### GitHub
+La fuente de verdad operativa para la próxima release es:
 
-- Workflow `Release Please` configurado
-- Workflow `Release` configurado
-- Secret `PAT` configurado en GitHub Actions para que `release-please` pueda crear PRs
+1. lo que ya está publicado en npm
+2. `.release-please-manifest.json`
+3. la PR automática de Release Please
+
+No crear tags manuales si no es estrictamente necesario.
+
+---
+
+## Estado esperado de la configuración
+
+### Workflow
+
+- `Release Please` corre en cada push a `main`
+- `Release` se dispara por tags `v*`
+
+### Release Please
+
+El repo debe mantener:
+
+- `.release-please-manifest.json` alineado con la última versión real publicada
+- `release-please-config.json` con:
+  - `include-component-in-tag: false`
+  - `extra-files` apuntando a todos los archivos de versión necesarios
 
 ### npm
 
-- Secret `NPM_TOKEN` configurado en GitHub Actions
-
-### Repo
-
-- Todos los `package.json` deben tener versiones consistentes
-- `package-lock.json` debe estar actualizado
-- `packages/mcp-server/package.json` debe tener `optionalDependencies` alineadas con la versión release actual
+- `NPM_TOKEN` configurado en GitHub Actions
 
 ---
 
-## Flujo normal de publicación
+## Flujo correcto para una nueva release
 
-### 1. Subir cambios a `main`
+### 1. Confirmar la última versión publicada real
 
-Los commits deben seguir conventional commits (`feat:`, `fix:`, `docs:`, etc.).
+Antes de hacer nada, revisar npm y GitHub:
+
+```bash
+npm view @navigation-agent/mcp-server version
+gh release list --limit 5
+```
+
+La versión base debe ser la misma en ambos lados.
+
+Si npm dice `0.3.4`, entonces:
+
+- `.release-please-manifest.json` debe estar en `0.3.4`
+- la próxima release debe partir desde `0.3.4`
+
+---
+
+### 2. Hacer push de los cambios del producto a `main`
+
+Los commits siguen conventional commits.
 
 ```bash
 git push origin main
 ```
 
----
+Importante:
 
-### 2. Esperar el PR automático de Release Please
+- `fix:` genera patch
+- `feat:` genera minor
 
-El workflow `Release Please` corre en cada push a `main` y crea un PR de release.
-
-Ese PR normalmente:
-
-- actualiza `CHANGELOG.md`
-- actualiza versiones
-- prepara la nueva release
-
----
-
-### 3. Mergear el PR de release
-
-Se puede hacer desde GitHub o con `gh`:
-
-```bash
-gh pr list
-gh pr merge <numero> --squash --admin
-```
-
----
-
-### 4. Verificar que exista el tag
-
-El workflow `Release` se dispara por tags `v*`.
-
-Si el tag no se creó automáticamente, crearlo manualmente:
-
-```bash
-git pull origin main
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
+Si quieres forzar una versión exacta, usar `release-as` temporalmente en `release-please-config.json`.
 
 Ejemplo:
 
-```bash
-git tag v0.3.0
-git push origin v0.3.0
+```json
+"release-as": "0.3.5"
 ```
+
+Eso solo se usa para corregir o fijar una versión puntual. Después de publicar, se elimina.
 
 ---
 
-### 5. Verificar el workflow de publicación
+### 3. Esperar la PR automática de Release Please
+
+```bash
+gh pr list --state open --limit 10
+```
+
+La PR correcta debe:
+
+- tener la versión esperada
+- actualizar `CHANGELOG.md`
+- actualizar todas las versiones alineadas
+
+Revisar especialmente que cambie:
+
+- `package.json`
+- `package-lock.json`
+- `packages/mcp-server/package.json`
+- `packages/contract-tests/package.json`
+- `packages/mcp-server-*/package.json`
+- `crates/navigation-engine/Cargo.toml`
+- `.release-please-manifest.json`
+
+---
+
+### 4. Verificar que Release Please no inventó una versión incorrecta
+
+Si la PR propone una versión inesperada:
+
+1. revisar `.release-please-manifest.json`
+2. revisar si hubo commits `feat:` que estén empujando minor
+3. si hace falta, fijar temporalmente `release-as`
+
+Si el changelog arrastra commits viejos, se puede usar temporalmente:
+
+```json
+"last-release-sha": "<sha-del-último-release-real>"
+```
+
+Después de corregir la PR y publicar, remover ese override.
+
+---
+
+### 5. Mergear la PR de release
+
+```bash
+gh pr merge <numero> --squash --admin
+```
+
+No crear el tag manualmente salvo que el workflow no lo haga.
+
+Con la configuración actual correcta, Release Please debe crear el tag en formato:
+
+```bash
+vX.Y.Z
+```
+
+No `navigation-agent-mcp-vX.Y.Z`.
+
+---
+
+### 6. Verificar el workflow de publicación
 
 ```bash
 gh run list --workflow=release.yml --limit=5
 gh run watch <run-id> --exit-status
 ```
 
-Si termina bien, se publican:
+Si termina bien, deben publicarse:
 
-- los paquetes binarios por plataforma
-- el paquete principal `@navigation-agent/mcp-server`
+- release de GitHub
+- paquetes binarios por plataforma
+- `@navigation-agent/mcp-server`
 
 ---
 
-### 6. Verificar la publicación
+### 7. Verificar publicación real
 
-GitHub Releases:
+GitHub:
 
 ```bash
-gh release list
+gh release list --limit 5
 ```
 
 npm:
 
-- revisar `https://www.npmjs.com/package/@navigation-agent/mcp-server`
+```bash
+npm view @navigation-agent/mcp-server version
+npm view @navigation-agent/mcp-server-linux-x64 version
+```
+
+La versión debe coincidir en:
+
+- GitHub Release
+- npm principal
+- paquetes binarios
 
 ---
 
-## Qué revisar si falla la publicación
+## Qué no hacer
 
-### Error en `npm ci` con `Invalid Version:`
+- no crear tags manuales por costumbre
+- no empujar una versión si npm todavía no refleja la anterior
+- no dejar `release-as` permanente
+- no dejar `last-release-sha` permanente
+- no asumir que `package.json` por sí solo controla Release Please
+
+---
+
+## Qué hacer si algo queda desalineado
+
+Caso típico:
+
+- GitHub quedó en `0.3.4`
+- npm sigue en `0.3.3`
+
+En ese caso:
+
+1. no seguir publicando
+2. cerrar la PR automática siguiente
+3. borrar release/tag incorrectos de GitHub si npm no publicó esa versión
+4. volver el repo a la última versión real publicada
+5. corregir `.release-please-manifest.json`
+6. recién ahí preparar la próxima release
+
+---
+
+## Error común: `npm install` / `npm ci` con `Invalid Version:`
 
 Revisar:
 
 1. `packages/mcp-server/package.json`
-   - `optionalDependencies` deben apuntar a la misma versión release
+   - `version`
+   - `optionalDependencies`
 
 2. `packages/mcp-server-*/package.json`
-   - todos los paquetes de plataforma deben tener la misma versión
+   - todos con la misma versión
 
 3. `packages/contract-tests/package.json`
-   - debe incluir campo `version`
+   - con `version` válida
 
 4. `package-lock.json`
-   - regenerarlo si quedó desalineado
+   - regenerado y alineado
+
+5. `Cargo.toml` / `Cargo.lock`
+   - alineados con la versión del repo si se decidió versionar Rust junto al producto
 
 Validación local:
 
 ```bash
+rm package-lock.json
 npm install --package-lock-only
 npm ci
 ```
 
 ---
 
-## Reintentar una release fallida sin cambiar versión
+## Configuración recomendada de Release Please
 
-Si el problema es de publicación o pipeline y **no del producto**, reutilizar el mismo tag.
+Puntos importantes:
 
-Ejemplo con `v0.3.0`:
+- `include-component-in-tag: false`
+  - para que los tags sean `vX.Y.Z`
 
-```bash
-git push origin main
-git push origin --delete v0.3.0
-git tag -d v0.3.0
-git tag v0.3.0
-git push origin v0.3.0
-```
+- `extra-files`
+  - debe incluir todos los archivos de versión del repo
 
-Esto vuelve a disparar el workflow `Release` para la misma versión.
+- `release-as`
+  - solo temporal cuando quieras forzar una versión exacta
+
+- `last-release-sha`
+  - solo temporal cuando el changelog quedó corrido
 
 ---
 
-## Convención recomendada
+## Flujo corto recomendado
 
-- Si falla el pipeline de publicación, **no subir versión nueva** si el producto no cambió
-- Corregir el pipeline
-- Reusar el mismo tag
-- Solo crear nueva versión si cambió el código del producto o el contenido release esperado
+Si todo está sano, la secuencia normal es:
+
+```bash
+git push origin main
+gh pr list --state open --limit 10
+gh pr merge <release-pr> --squash --admin
+gh run list --workflow=release.yml --limit=5
+gh run watch <run-id> --exit-status
+npm view @navigation-agent/mcp-server version
+gh release list --limit 5
+```
+
+---
+
+## Convención práctica
+
+- si la release anterior no quedó publicada en npm, no seguir con la siguiente
+- primero resincronizar GitHub con npm
+- luego preparar la siguiente release
+- si hace falta fijar una versión exacta, usar `release-as` temporalmente
+- después de publicar, quitar los overrides temporales

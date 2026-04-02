@@ -1,6 +1,6 @@
 # @navigation-agent/mcp-server
 
-MCP server for code navigation and repository inspection. Gives any AI coding agent the ability to find symbols, trace call chains, list endpoints, search text, and inspect the workspace tree — without reading raw file contents.
+MCP server for code navigation and repository inspection. It exposes a stable public `code.*` tool surface for finding symbols, listing routes/endpoints, tracing execution flow, tracing callers, searching text, and inspecting workspace trees without opening files blindly.
 
 **npm:** [`@navigation-agent/mcp-server`](https://www.npmjs.com/package/@navigation-agent/mcp-server)
 
@@ -8,20 +8,12 @@ MCP server for code navigation and repository inspection. Gives any AI coding ag
 
 ## Installation
 
-The server runs via `npx` — no global install needed.
+The server runs via `npx`.
 
 ### Requirements
-- **Node.js 18+** (you only need this to run `npx`)
-- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`) — **optional**, only needed if you use the `workspace.search_text` tool
 
-### Install ripgrep (optional)
-
-| OS | Command |
-|---|---|
-| macOS | `brew install ripgrep` |
-| Arch Linux | `sudo pacman -S ripgrep` |
-| Ubuntu / Debian | `sudo apt install ripgrep` |
-| Windows | `winget install BurntSushi.ripgrep.MSVC` |
+- **Node.js 18+**
+- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`) — optional, only needed for `code.search_text`
 
 ### Claude Code
 
@@ -63,7 +55,7 @@ Add to `~/.gemini/settings.json`:
 
 ### Cursor
 
-Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
+Add to `~/.cursor/mcp.json` or `.cursor/mcp.json`:
 
 ```json
 {
@@ -92,163 +84,215 @@ args = ["-y", "@navigation-agent/mcp-server"]
 
 ### Workspace root
 
-By default the server analyzes the directory where your agent is running. To pin a specific path, pass `NAVIGATION_MCP_WORKSPACE_ROOT` as an environment variable in your agent's MCP config.
+By default the server analyzes the current working directory. To pin a specific project, set `NAVIGATION_MCP_WORKSPACE_ROOT` in your MCP config.
 
 ---
 
-## Supported Languages & Capabilities
+## Compatibility matrix
 
-| Capability | Java | TypeScript | Python | Rust | All Files |
-|---|---|---|---|---|---|
-| **workspace.find_symbol** | ✓ | ✓ | ✓ | ✓ | — |
-| **workspace.list_endpoints** | ✓ Spring REST & GraphQL | ✓ React Router 7 | ✓ FastAPI, Flask | ✓ Actix | — |
-| **workspace.trace_callers** | ✓ | ✓ | — | — | — |
-| **workspace.trace_flow** | ✓ Full DI tracing | ✓ Basic tracing | — | — | — |
-| **workspace.inspect_tree** | — | — | — | — | ✓ |
-| **workspace.search_text** | — | — | — | — | ✓ |
+This table MUST stay in the README because it is the fastest way to understand the public support surface.
 
-**Legend:**
-- ✓ = Fully supported
-- — = Not supported (returns empty results)
-- **workspace.inspect_tree** and **workspace.search_text** work across all file types (no language parsing needed)
+| Capability | Java | TypeScript / JavaScript | Python | Rust | Go | All Files |
+|---|---|---|---|---|---|---|
+| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
+| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Real validation returned no symbol definitions | — |
+| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
+| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Publicly exposed; chosen Rust project had no web endpoints to validate against | ❌ Real validation returned no useful endpoint support | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified for same-file React Router route flow | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Returns empty results in real `examples/go` validation | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified for same-file helper callers | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Exposed, but real validated case is still incomplete | ❌ Real validation fails | — |
 
-### Language-Specific Features
+Legend:
 
-**Java Special Features:**
-- **Full Spring DI tracing**: `trace_flow` follows interfaces to implementations through the complete call chain
-- **Infrastructure boundary detection**: Automatically stops recursion at adapters/repositories
-- **Method grouping**: Groups multiple calls to the same method with count
+- ✅ = verified in a real project during this documentation sync
+- ⚠️ = publicly exposed, but not re-verified in this pass, not meaningful on the chosen validation project, or still has caveats
+- ❌ = not working as public support today
+- — = language-specific parsing not required
 
-**TypeScript/JavaScript:**
-- **Basic tracing**: `trace_flow` extracts callees from functions (loaders, actions, components)
-- Note: Does not yet follow imports to resolve function implementations (returns callees found in the same file)
+Important:
+
+- Go analyzer work exists internally in Rust, but **Go is not part of the public TS contract yet**.
+- Rust `code.trace_callers` is exposed publicly, but the real validated case still showed incomplete behavior.
 
 ---
 
-## Tools
+## Public tools
 
-### `workspace.find_symbol`
-Find where a symbol (class, function, interface, etc.) is defined in the workspace.
+The public contract exposes exactly these six tools:
 
-**Example:** Find all implementations of `findUsersByRoot`
+- `code.inspect_tree`
+- `code.list_endpoints`
+- `code.find_symbol`
+- `code.search_text`
+- `code.trace_flow`
+- `code.trace_callers`
+
+Use `snake_case` parameters such as `max_depth`, `include_hidden`, and `file_pattern`.
+
+### Quick examples
+
 ```json
 {
-  "symbol": "findUsersByRoot",
-  "analyzerLanguage": "java"
+  "symbol": "RootUserGraphQLController",
+  "language": "java",
+  "kind": "class"
 }
 ```
 
-**Returns:**
-- Symbol name and kind (method, class, interface)
-- File path
-- Line start and line end (function boundaries)
-- Language
-
----
-
-### `workspace.inspect_tree`
-Inspect the directory tree without reading file contents. Useful for orientation before diving in.
-
-**Parameters:**
-- `path`: Directory to inspect (optional, defaults to workspace root)
-- `maxDepth`: Maximum depth to traverse (optional)
-- `includeStats`: Include file size and modified time (optional)
-
----
-
-### `workspace.list_endpoints`
-List backend REST/GraphQL endpoints and frontend routes discovered by static analysis.
-
-**Supported frameworks:**
-- **Java**: Spring REST, Spring GraphQL
-- **TypeScript**: React Router 7
-- **Python**: FastAPI, Flask, Django
-- **Rust**: Actix-web, async-graphql
-
----
-
-### `workspace.search_text`
-Search plain text or regex patterns across workspace files using ripgrep.
-
-**Parameters:**
-- `query`: Search pattern (string or regex)
-- `path`: Scope path (optional)
-- `caseSensitive`: Case-sensitive search (optional)
-- `includePattern`: File pattern to include (optional, e.g., "*.java")
-
----
-
-### `workspace.trace_flow` (Java & TypeScript)
-Trace a method's complete call flow through the application.
-
-**Java:** Follows Spring DI interfaces to implementations (ports → adapters).
-**TypeScript:** Extracts callees from the function body (same-file analysis).
-
-**Example:** Trace `getUsersByDependency` endpoint
 ```json
 {
-  "path": "src/main/java/.../RootUserGraphQLController.java",
-  "symbol": "getUsersByDependency",
-  "analyzerLanguage": "java"
+  "path": "app/routes/change-password.tsx",
+  "symbol": "action",
+  "framework": "react-router"
 }
 ```
 
-**Features:**
-- Follows interfaces (ports) to implementations (adapters)
-- Stops recursion at infrastructure layer (adapters/repositories)
-- Groups multiple calls to the same method
-- Detects recursive calls
-- Returns call depth for each callee
-
-**Flow example:**
-```
-Controller.getUsersByDependency (depth 1)
-  → Port.getUsers (depth 2)
-    → UseCase.findUsersByRoot (depth 2)
-      → Repository.findByIds (depth 2)
-        → Adapter.findByIds (depth 3) [stops - infrastructure]
+```json
+{
+  "path": "src/main/java/com/example/FooController.java",
+  "symbol": "getFoo",
+  "framework": "spring"
+}
 ```
 
 ---
 
-### `workspace.trace_callers`
-Trace incoming callers for a symbol. Supports recursive traversal with configurable depth.
+## Verified real-world behavior
 
-**Parameters:**
-- `path`: Starting file path
-- `symbol`: Symbol name to trace
-- `analyzerLanguage`: Language ("java", "typescript", "python", "rust")
-- `maxDepth`: Maximum recursion depth (optional, default 5)
+These checks were verified against real projects instead of toy stubs:
+
+### Java (`~/sias/app/back`)
+
+- `code.inspect_tree` works on real module trees
+- `code.find_symbol` works on real Spring classes
+- `code.search_text` works on real Java source
+- `code.list_endpoints` works against Spring controllers and GraphQL resolvers
+- `code.trace_flow` works on real controller/resolver entrypoints
+- `code.trace_callers` works on Java use cases and can identify probable public entrypoints
+
+Verified example:
+- `RootUserGraphQLController#getUsersByDependency`
+- traced into `RootGetUserUseCase#getUsers`
+
+### TypeScript / React Router (`~/sias/app/front`)
+
+- `code.inspect_tree` works on real route trees
+- `code.find_symbol` works on route-module exports
+- `code.search_text` works on real route files
+- `code.list_endpoints` works for route-module `loader` / `action`
+- `code.trace_flow` works for same-file route flow extraction
+- `code.trace_callers` works for same-file helpers and marks route exports as probable entrypoints
+
+Verified example:
+- `app/routes/change-password.tsx#action`
+- found calls to `getUserIdAndTokenFromSession`, `changeMyPassword`, `getSession`, `commitSession`, `getRoleRoute`
+
+### Rust (this repository)
+
+- `code.inspect_tree` works on real Rust source trees
+- `code.find_symbol` works on Rust types/functions
+- `code.search_text` works on real Rust source
+- `code.trace_flow` works on real Rust methods, including the recent local-binding slice in `trace_flow.rs`
+- `code.trace_callers` is exposed publicly, but the real Rust case validated here still returned no callers for symbols that do have callers in code
+
+Notes:
+- `code.list_endpoints` returned zero results on this repository, which is expected for the chosen validation target because it is not a Rust web app
+
+Verified example:
+- `crates/navigation-engine/src/capabilities/trace_flow.rs#build`
+- traced `Self::new_empty()`, `index.scan_project(workspace_root)`, and `index.is_empty()`
+
+### Go (`./examples/go`)
+
+Go analyzer work exists in the Rust engine, but **Go is not part of the public TypeScript contract yet**.
+
+Real behavior today against `examples/go`:
+
+- `code.inspect_tree` works
+- `code.search_text` works
+- `code.find_symbol` did **not** find `UserHandler`
+- `code.find_symbol` also did **not** find `CreateUser`
+- `code.list_endpoints` returned no useful support
+- `code.trace_flow` on `CreateUser` returned `ok` but with **no callees**
+- `code.trace_callers` on `NewUser` returned **backend execution failed**
+
+So Go should be documented as **work in progress / not publicly supported yet**, not as a stable supported language.
+
+---
+
+## Public language and framework filters
+
+Current public language filters:
+
+- `typescript`
+- `javascript`
+- `java`
+- `python`
+- `rust`
+
+Current public framework filters:
+
+- `react-router`
+- `spring`
+
+---
+
+## Response shape
+
+Every tool returns the same top-level envelope:
+
+```json
+{
+  "tool": "code.trace_flow",
+  "status": "ok",
+  "summary": "Traced 5 callees for 'action' from 'app/routes/change-password.tsx'.",
+  "data": {},
+  "errors": [],
+  "meta": {
+    "query": {},
+    "resolvedPath": "app/routes/change-password.tsx",
+    "truncated": false,
+    "counts": {},
+    "detection": {}
+  }
+}
+```
+
+Status meanings:
+
+- `ok` — request succeeded, including zero-result success
+- `partial` — request succeeded but was truncated/pruned
+- `error` — request failed and includes stable error codes
 
 ---
 
 ## Architecture
 
-The server uses a two-layer architecture:
+This repository has two main layers:
 
-1. **Rust Engine** (`crates/navigation-engine/`)
-   - Fast parsing with tree-sitter
-   - Language-specific analyzers (Java, TypeScript, Python, Rust)
-   - Global project index for Java (interfaces, implementations)
-   - JSON-RPC interface
+1. **TypeScript MCP runtime** (`packages/mcp-server/`)
+   - validates the public `code.*` contract
+   - exposes stdio / stdio-legacy transports
+   - normalizes responses
 
-2. **TypeScript Server** (MCP wrapper)
-   - MCP protocol handling
-   - Request/response marshalling
-   - Tool registration
+2. **Rust engine** (`crates/navigation-engine/`)
+   - parses source with tree-sitter
+   - hosts language analyzers
+   - includes internal AST/debug binaries under `crates/navigation-engine/src/bin/`
 
-### Java Analysis Features
-- **Interface indexing**: Scans all interfaces and their implementations
-- **Field type resolution**: Resolves field types including wildcard imports
-- **Builder chain detection**: Filters Lombok builder noise
-- **Framework filtering**: Excludes `java.*`, `spring.*`, etc.
+Important:
+
+- `packages/mcp-server/src/bin/` contains the runtime entrypoint (`navigation-mcp.ts`)
+- AST inspection/debug binaries live in `crates/navigation-engine/src/bin/`, not in the TypeScript runtime
 
 ---
+
+## Contributing / local development
+
+See:
+
+- [docs/development.md](docs/development.md)
+- [docs/overview.md](docs/overview.md)
 
 ## License
 
 MIT
-
----
-
-> For contributing or running the server locally, see [docs/development.md](docs/development.md).

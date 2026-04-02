@@ -236,6 +236,7 @@ impl SearchFileAccumulator {
 fn build_globs(language: Option<&str>, include: Option<&str>) -> Vec<String> {
     let mut globs = match language {
         Some("typescript") => vec!["*.ts".to_string(), "*.tsx".to_string()],
+        Some("go") => vec!["*.go".to_string()],
         Some("javascript") => vec!["*.js".to_string(), "*.jsx".to_string()],
         Some("java") => vec!["*.java".to_string()],
         Some("python") => vec!["*.py".to_string()],
@@ -308,6 +309,7 @@ fn infer_language_from_path(path: &str) -> Option<String> {
 
     match extension.as_str() {
         "ts" | "tsx" => Some("typescript".to_string()),
+        "go" => Some("go".to_string()),
         "js" | "jsx" => Some("javascript".to_string()),
         "java" => Some("java".to_string()),
         "py" => Some("python".to_string()),

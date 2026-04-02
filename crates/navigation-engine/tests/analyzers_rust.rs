@@ -2,7 +2,9 @@ use std::path::Path;
 
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
 use navigation_engine::analyzers::rust::RustAnalyzer;
-use navigation_engine::analyzers::{FindEndpointsQuery, FindSymbolQuery};
+use navigation_engine::analyzers::{
+    FindCalleesQuery, FindCallersQuery, FindEndpointsQuery, FindSymbolQuery,
+};
 
 fn any_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -38,6 +40,20 @@ fn graphql_endpoint_query() -> FindEndpointsQuery {
         public_language_filter: None,
         public_framework_filter: None,
         limit: 50,
+    }
+}
+
+fn rust_callers_query(symbol: &str) -> FindCallersQuery {
+    FindCallersQuery {
+        target_path: Path::new("src/lib.rs").to_path_buf(),
+        target_symbol: symbol.to_string(),
+    }
+}
+
+fn rust_callees_query(symbol: &str) -> FindCalleesQuery {
+    FindCalleesQuery {
+        source_path: Path::new("src/lib.rs").to_path_buf(),
+        target_symbol: symbol.to_string(),
     }
 }
 
@@ -78,12 +94,12 @@ impl UserId {
     assert!(kinds.contains(&("Runner", "interface", Some("rust"))));
     assert!(kinds.contains(&("LoadResult", "type", Some("rust"))));
     assert!(kinds.contains(&("load", "function", Some("rust"))));
-    assert!(kinds.contains(&("new", "method", Some("rust"))));
-    assert!(kinds.contains(&("load_cached", "method", Some("rust"))));
+    assert!(kinds.contains(&("UserId::new", "method", Some("rust"))));
+    assert!(kinds.contains(&("UserId::load_cached", "method", Some("rust"))));
     assert_eq!(
         items
             .iter()
-            .filter(|item| item.symbol == "load_cached")
+            .filter(|item| item.symbol == "UserId::load_cached")
             .count(),
         1
     );
@@ -395,4 +411,92 @@ fn supports_framework_returns_true_for_none() {
     assert!(analyzer.supports_framework(None));
     assert!(!analyzer.supports_framework(Some("actix")));
     assert!(!analyzer.supports_framework(Some("axum")));
+}
+
+#[test]
+fn finds_rust_function_and_impl_method_callers() {
+    let analyzer = RustAnalyzer;
+    let source = r#"
+fn load() {}
+
+fn bootstrap() {
+    load();
+}
+
+struct Builder;
+
+impl Builder {
+    fn build() {
+        Self::reset();
+        let helper = Self::new();
+        helper.reset();
+    }
+
+    fn reset() {}
+    fn new() -> Self { Builder }
+}
+"#;
+
+    let function_callers = analyzer.find_callers(
+        Path::new("src"),
+        Path::new("src/lib.rs"),
+        source,
+        &rust_callers_query("load"),
+    );
+    assert_eq!(function_callers.len(), 1);
+    assert_eq!(
+        function_callers[0].caller_symbol.as_deref(),
+        Some("bootstrap")
+    );
+
+    let method_callers = analyzer.find_callers(
+        Path::new("src"),
+        Path::new("src/lib.rs"),
+        source,
+        &rust_callers_query("Builder::reset"),
+    );
+    assert_eq!(method_callers.len(), 2);
+    assert!(method_callers
+        .iter()
+        .all(|item| item.caller_symbol.as_deref() == Some("Builder::build")));
+}
+
+#[test]
+fn preserves_fully_qualified_factory_owner_for_local_receiver_calls() {
+    let analyzer = RustAnalyzer;
+    let source = r#"
+mod index {
+    pub struct JavaProjectIndex;
+
+    impl JavaProjectIndex {
+        pub fn new_empty() -> Self { JavaProjectIndex }
+        pub fn scan_project(&self) {}
+    }
+}
+
+struct Builder;
+
+impl Builder {
+    fn build() {
+        let index = crate::index::JavaProjectIndex::new_empty();
+        index.scan_project();
+    }
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("src/lib.rs"),
+        source,
+        &rust_callees_query("Builder::build"),
+    );
+
+    let callee_names: Vec<_> = callees.iter().map(|c| c.callee.as_str()).collect();
+    assert!(
+        callee_names.contains(&"crate::index::JavaProjectIndex::new_empty"),
+        "callee_names were: {callee_names:?}"
+    );
+    assert!(
+        callee_names.contains(&"crate::index::JavaProjectIndex::scan_project"),
+        "callee_names were: {callee_names:?}"
+    );
 }

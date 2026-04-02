@@ -110,6 +110,7 @@ pub fn find_symbol(
 fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError> {
     match value {
         "auto" => Ok(AnalyzerLanguage::Auto),
+        "go" => Ok(AnalyzerLanguage::Go),
         "java" => Ok(AnalyzerLanguage::Java),
         "python" => Ok(AnalyzerLanguage::Python),
         "rust" => Ok(AnalyzerLanguage::Rust),

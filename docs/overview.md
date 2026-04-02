@@ -2,37 +2,24 @@
 
 ## What this MCP is
 
-`navigation-agent-mcp` is a focused Model Context Protocol server for **code navigation and repository inspection**.
+`navigation-agent-mcp` is a focused MCP server for code navigation and repository inspection.
 
-It exposes a stable `workspace.*` public contract designed for agents and automation that need to:
+Its stable public contract is the `code.*` tool family:
 
-- locate symbols
-- inspect repository trees safely
-- index endpoints and routes
-- search text with normalized results
-- trace symbols forward
-- trace callers backward
+- `code.find_symbol`
+- `code.search_text`
+- `code.trace_flow`
+- `code.trace_callers`
+- `code.list_endpoints`
+- `code.inspect_tree`
 
 ## Philosophy
 
-This implementation is intentionally focused.
-
-- **Navigation first**: inspect and trace code safely before adding heavier workflows.
-- **Normalized envelopes**: every public tool returns the same top-level shape.
-- **Machine-friendly semantics**: stable error codes, count metadata, and detection fields.
-- **Workspace safety**: scoped paths must stay inside the configured workspace root.
-- **No raw backend leakage**: internal analyzer details stay private to the implementation.
-
-## Public tools
-
-| Tool | Purpose |
-| --- | --- |
-| `workspace.find_symbol` | Locate symbol definitions by name |
-| `workspace.search_text` | Search plain text or regex across files |
-| `workspace.trace_flow` | Trace a symbol forward from a known file |
-| `workspace.trace_callers` | Trace direct or recursive incoming callers |
-| `workspace.list_endpoints` | Discover backend endpoints and frontend routes |
-| `workspace.inspect_tree` | Inspect the workspace tree without reading file contents |
+- **Navigation first**: inspect and trace before broad file reads
+- **Normalized envelopes**: every tool returns the same top-level response shape
+- **Machine-friendly semantics**: stable error codes, counts, and detection metadata
+- **Workspace safety**: scoped paths must stay inside the configured workspace root
+- **No raw backend leakage**: engine internals stay behind the public contract
 
 ## Stable response contract
 
@@ -40,7 +27,7 @@ Every public tool returns:
 
 ```json
 {
-  "tool": "workspace.inspect_tree",
+  "tool": "code.inspect_tree",
   "status": "ok",
   "summary": "Inspected 3 tree entries under '.'.",
   "data": {},
@@ -61,10 +48,11 @@ Every public tool returns:
 - `partial`: success with truncation or safety pruning
 - `error`: request could not be completed
 
-### Common path guarantees
+### Common guarantees
 
-- Missing scoped paths return `FILE_NOT_FOUND`
-- Escaping the workspace root returns `PATH_OUTSIDE_WORKSPACE`
+- missing scoped paths return `FILE_NOT_FOUND`
+- paths outside the workspace root return `PATH_OUTSIDE_WORKSPACE`
+- request metadata is echoed back under `meta.query`
 
 ## Architecture
 
@@ -73,27 +61,84 @@ client
   -> TypeScript runtime (`packages/mcp-server`)
     -> public request validation
     -> normalized response envelopes
-    -> JSON over stdio
+    -> stdio / stdio-legacy transport
       -> Rust engine (`crates/navigation-engine`)
-        -> workspace.inspect_tree
-        -> workspace.find_symbol
-        -> workspace.list_endpoints
-        -> workspace.search_text
-        -> workspace.trace_flow
-        -> workspace.trace_callers
+        -> analyzers per language
+        -> endpoint discovery
+        -> symbol lookup
+        -> text search
+        -> forward trace
+        -> reverse caller trace
 ```
 
-All six public tools run through the TS -> Rust path.
+Important separation:
 
-## Supported frameworks and languages
+- `packages/mcp-server/src/bin/navigation-mcp.ts` is the runtime entrypoint
+- analyzer debug/AST binaries live in `crates/navigation-engine/src/bin/`
 
-- **TypeScript/JavaScript**: React Router 7 routes
-- **Java**: Spring REST and GraphQL endpoints
-- **Python**: FastAPI, Flask, Django decorators and URL patterns
-- **Rust**: Actix-web and async-graphql
+## Public filters today
+
+### Languages
+
+- `typescript`
+- `javascript`
+- `java`
+- `python`
+- `rust`
+
+### Frameworks
+
+- `react-router`
+- `spring`
+
+## Compatibility matrix
+
+| Capability | Java | TypeScript / JavaScript | Python | Rust | Go | All Files |
+|---|---|---|---|---|---|---|
+| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
+| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Real validation returned no symbol definitions | — |
+| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
+| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Publicly exposed; chosen Rust project had no web endpoints to validate against | ❌ Real validation returned no useful endpoint support | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified for same-file React Router route flow | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Returns empty results in real `examples/go` validation | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified for same-file helper callers | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Exposed, but real validated case is still incomplete | ❌ Real validation fails | — |
+
+Legend:
+
+- ✅ = verified in a real project during this documentation sync
+- ⚠️ = publicly exposed, but not re-verified in this pass, not meaningful on the chosen validation project, or still has caveats
+- ❌ = not working as public support today
+- — = language-specific parsing not required
+
+## Real support snapshot
+
+This is the important part: SUPPORT IS NOT JUST “code exists somewhere”. It must work through the public MCP surface.
+
+### Verified in real projects
+
+- **Java / Spring**
+  - `list_endpoints` works on real controllers/resolvers
+  - `trace_flow` works on real entrypoints
+  - `trace_callers` works on real use-case methods
+
+- **TypeScript / React Router**
+  - `list_endpoints` works on route modules
+  - `trace_flow` works for same-file route flow extraction
+  - `trace_callers` works for same-file helpers and route exports
+
+- **Rust**
+  - `find_symbol` works in real code
+  - `trace_flow` works in real code
+  - `trace_callers` is exposed but the validated real case still returned no callers where callers exist, so treat it as incomplete
+
+### Not publicly supported yet
+
+- **Go**
+  - there is analyzer work in the Rust engine and an `examples/go` app
+  - but Go is not part of the public TS contract today
+  - real runs currently return empty/missing results, so it should be treated as work in progress
 
 ## Intended audience
 
 - agent developers integrating a stable code-navigation MCP
-- maintainers evolving future versions safely from a hardened contract
-- users who need inspection and trace workflows without exposing raw analyzer internals
+- maintainers evolving the public contract safely
+- teams that need structural code discovery without handing raw repository reads to the model
