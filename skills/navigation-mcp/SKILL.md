@@ -8,8 +8,8 @@ description: >
 license: Apache-2.0
 compatibility: opencode
 metadata:
-  author: gentleman-programming
-  version: "1.2.0"
+  author: j0k3r-dev-rgl
+  version: "1.3.0"
 ---
 
 ## When to Use
@@ -26,6 +26,9 @@ metadata:
 3. After navigation narrows the scope, read only the files that were returned.
 4. Fall back to `read` / `glob` only when navigation returns no match or the task is outside its scope.
 5. Never use `bash grep` or `bash find` for code search while navigation tools are available.
+6. The stable public MCP contract is `code.*`, not `workspace.*`.
+7. Current public languages are `typescript`, `javascript`, `java`, `python`, and `rust`; do not present Go as public support yet.
+8. Treat Go as engine work-in-progress: `inspect_tree` and `search_text` may still be useful in `examples/go`, but `find_symbol`, `trace_flow`, and `trace_callers` are not yet reliable through the public contract.
 
 ## Tool Decision Guide
 
@@ -247,6 +250,22 @@ Goal: find every file that imports or uses a specific decorator or annotation
 - Use `read` / `glob` only after a navigation tool returned no results or the path is already known exactly.
 - Use `bash` search tools only when navigation is genuinely unavailable or broken.
 - When a navigation tool returns partial results (`truncated: true`), narrow the scope with `path` or `limit` before falling back.
+- When validating support claims, prefer real-project checks over toy examples and contrast the output against real source files.
+
+## Real Support Snapshot
+
+Verified during the latest project sync:
+
+| Capability | Java | TypeScript / JavaScript | Rust | Go |
+| --- | --- | --- | --- | --- |
+| `inspect_tree` | ✅ | ✅ | ✅ | ✅ |
+| `find_symbol` | ✅ | ✅ | ✅ | ❌ |
+| `search_text` | ✅ | ✅ | ✅ | ✅ |
+| `list_endpoints` | ✅ | ✅ | ⚠️ target-dependent | ❌ |
+| `trace_flow` | ✅ | ✅ | ✅ | ❌ |
+| `trace_callers` | ✅ | ✅ | ⚠️ incomplete in real case | ❌ |
+
+Use this table as guidance for expectations, not as a substitute for real validation.
 
 ## Anti-Patterns
 
