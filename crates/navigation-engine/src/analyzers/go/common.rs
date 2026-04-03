@@ -68,6 +68,8 @@ pub(super) struct GoFileContext {
 pub(super) struct GoFunctionContext {
     pub symbol: String,
     pub local_bindings: HashMap<String, String>,
+    pub start_line: u32,
+    pub end_line: u32,
 }
 
 #[derive(Clone)]
@@ -147,6 +149,13 @@ pub(super) fn normalize_go_target_symbol(value: &str) -> GoTargetSymbol {
 }
 
 impl GoTargetSymbol {
+    pub fn method_parts(&self) -> Option<(&str, &str)> {
+        match self {
+            Self::Method { owner, name } => Some((owner.as_str(), name.as_str())),
+            Self::Function(_) => None,
+        }
+    }
+
     pub fn display(&self) -> String {
         match self {
             Self::Function(name) => name.clone(),
@@ -215,11 +224,18 @@ pub(super) fn go_symbol_matches_target(candidate: &str, target: &str) -> bool {
             .unwrap_or(false)
 }
 
-pub(super) fn extract_go_function_context(node: Node, source: &[u8]) -> Option<GoFunctionContext> {
+pub(super) fn extract_go_function_context_with_file_context(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+) -> Option<GoFunctionContext> {
     let symbol = current_go_symbol(node, source)?;
     Some(GoFunctionContext {
         symbol,
-        local_bindings: collect_local_bindings(node, source),
+        local_bindings: collect_local_bindings(node, source, file_ctx, current_file),
+        start_line: (node.start_position().row + 1) as u32,
+        end_line: (node.end_position().row + 1) as u32,
     })
 }
 
@@ -338,7 +354,12 @@ fn resolve_selector_expression(
     })
 }
 
-fn collect_local_bindings(node: Node, source: &[u8]) -> HashMap<String, String> {
+fn collect_local_bindings(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+) -> HashMap<String, String> {
     let mut bindings = HashMap::new();
 
     for index in 0..node.named_child_count() {
@@ -367,7 +388,164 @@ fn collect_local_bindings(node: Node, source: &[u8]) -> HashMap<String, String> 
         }
     }
 
+    collect_block_local_bindings(node, source, file_ctx, current_file, &mut bindings);
+
     bindings
+}
+
+fn collect_block_local_bindings(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+    bindings: &mut HashMap<String, String>,
+) {
+    for index in 0..node.named_child_count() {
+        let Some(child) = node.named_child(index) else {
+            continue;
+        };
+
+        match child.kind() {
+            "short_var_declaration" => {
+                collect_short_var_binding(child, source, file_ctx, current_file, bindings)
+            }
+            "var_declaration" => {
+                collect_block_local_bindings(child, source, file_ctx, current_file, bindings)
+            }
+            _ => collect_block_local_bindings(child, source, file_ctx, current_file, bindings),
+        }
+    }
+}
+
+fn collect_short_var_binding(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+    bindings: &mut HashMap<String, String>,
+) {
+    let left = node.named_child(0);
+    let right = node.named_child(1);
+    let (Some(left), Some(right)) = (left, right) else {
+        return;
+    };
+
+    let binding_type = infer_binding_type_from_expression(right, source, file_ctx, current_file);
+    let Some(binding_type) = binding_type else {
+        return;
+    };
+
+    for index in 0..left.named_child_count() {
+        let Some(name_node) = left.named_child(index) else {
+            continue;
+        };
+        if name_node.kind() != "identifier" {
+            continue;
+        }
+        if let Some(name) = node_text(name_node, source) {
+            bindings.insert(name, binding_type.clone());
+        }
+    }
+}
+
+fn infer_binding_type_from_expression(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+) -> Option<String> {
+    let expression = if node.kind() == "expression_list" {
+        node.named_child(0)?
+    } else {
+        node
+    };
+
+    match expression.kind() {
+        "call_expression" => {
+            let function = expression
+                .child_by_field_name("function")
+                .or_else(|| expression.named_child(0))?;
+            infer_binding_type_from_callable(function, source, file_ctx, current_file)
+        }
+        "unary_expression" => {
+            let operand = expression.named_child(0)?;
+            infer_binding_type_from_expression(operand, source, file_ctx, current_file)
+        }
+        "composite_literal" => {
+            let type_node = expression
+                .child_by_field_name("type")
+                .or_else(|| expression.named_child(0))?;
+            infer_binding_type_from_type_node(type_node, source, file_ctx, current_file)
+        }
+        _ => None,
+    }
+}
+
+fn infer_binding_type_from_callable(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+) -> Option<String> {
+    match node.kind() {
+        "identifier" => {
+            let symbol = node_text(node, source)?;
+            symbol.strip_prefix("New").map(|suffix| suffix.to_string())
+        }
+        "selector_expression" => {
+            let operand = node
+                .child_by_field_name("operand")
+                .or_else(|| node.named_child(0))?;
+            let field = node
+                .child_by_field_name("field")
+                .or_else(|| node.named_child(1))?;
+            let operand_name = node_text(operand, source)?;
+            let field_name = node_text(field, source)?;
+            let type_name = field_name.strip_prefix("New")?;
+
+            if file_ctx.imports.contains_key(&operand_name) {
+                return Some(format!("{operand_name}.{type_name}"));
+            }
+            Some(format!("{type_name}"))
+        }
+        _ => {
+            let _ = current_file;
+            None
+        }
+    }
+}
+
+fn infer_binding_type_from_type_node(
+    node: Node,
+    source: &[u8],
+    file_ctx: &GoFileContext,
+    current_file: &Path,
+) -> Option<String> {
+    match node.kind() {
+        "pointer_type" => {
+            let inner = node.named_child(0)?;
+            infer_binding_type_from_type_node(inner, source, file_ctx, current_file)
+        }
+        "type_identifier" => node_text(node, source),
+        "qualified_type" | "selector_expression" => {
+            let operand = node
+                .child_by_field_name("operand")
+                .or_else(|| node.named_child(0))?;
+            let field = node
+                .child_by_field_name("field")
+                .or_else(|| node.named_child(1))?;
+            let operand_name = node_text(operand, source)?;
+            let field_name = node_text(field, source)?;
+            if file_ctx.imports.contains_key(&operand_name) {
+                return Some(format!("{operand_name}.{field_name}"));
+            }
+            Some(field_name)
+        }
+        _ => {
+            let _ = current_file;
+            None
+        }
+    }
 }
 
 fn extract_parameter_names(node: Node, source: &[u8]) -> Vec<String> {

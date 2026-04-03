@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: opencode
 metadata:
   author: j0k3r-dev-rgl
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 ## When to Use
@@ -27,8 +27,8 @@ metadata:
 4. Fall back to `read` / `glob` only when navigation returns no match or the task is outside its scope.
 5. Never use `bash grep` or `bash find` for code search while navigation tools are available.
 6. The stable public MCP contract is `code.*`, not `workspace.*`.
-7. Current public languages are `typescript`, `javascript`, `java`, `python`, and `rust`; do not present Go as public support yet.
-8. Treat Go as engine work-in-progress: `inspect_tree` and `search_text` may still be useful in `examples/go`, but `find_symbol`, `trace_flow`, and `trace_callers` are not yet reliable through the public contract.
+7. Current public languages are `typescript`, `javascript`, `go`, `java`, `python`, and `rust`.
+8. Go is now usable through the public contract for `find_symbol`, `search_text`, `trace_flow`, and `trace_callers`, but `list_endpoints` is still limited on the current example app.
 
 ## Tool Decision Guide
 
@@ -259,11 +259,11 @@ Verified during the latest project sync:
 | Capability | Java | TypeScript / JavaScript | Rust | Go |
 | --- | --- | --- | --- | --- |
 | `inspect_tree` | ✅ | ✅ | ✅ | ✅ |
-| `find_symbol` | ✅ | ✅ | ✅ | ❌ |
+| `find_symbol` | ✅ | ✅ | ✅ | ✅ |
 | `search_text` | ✅ | ✅ | ✅ | ✅ |
-| `list_endpoints` | ✅ | ✅ | ⚠️ target-dependent | ❌ |
-| `trace_flow` | ✅ | ✅ | ✅ | ❌ |
-| `trace_callers` | ✅ | ✅ | ⚠️ incomplete in real case | ❌ |
+| `list_endpoints` | ✅ | ✅ | ⚠️ target-dependent | ⚠️ limited in current example |
+| `trace_flow` | ✅ | ✅ | ✅ | ✅ |
+| `trace_callers` | ✅ | ✅ | ✅ with qualified symbols | ✅ |
 
 Use this table as guidance for expectations, not as a substitute for real validation.
 

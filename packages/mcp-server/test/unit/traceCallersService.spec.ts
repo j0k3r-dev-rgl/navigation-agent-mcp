@@ -127,3 +127,43 @@ test("traceCallersService maps stable error responses", async () => {
   assert.equal(unsupportedResult.summary, "Caller trace failed.");
   assert.equal(unsupportedResult.errors[0]?.code, "BACKEND_EXECUTION_FAILED");
 });
+
+test("traceCallersService infers go analyzer language from path", async () => {
+  const engineClient = new MockEngineClient({
+    id: "req-1",
+    ok: true,
+    result: {
+      resolvedPath: "internal/repository/memory_user_repository.go",
+      items: [],
+      totalMatched: 0,
+      truncated: false,
+      recursive: null,
+    },
+  });
+  const service = createTraceCallersService({
+    workspaceRoot: "/workspace",
+    engineClient,
+  });
+
+  await service.validateAndExecute({
+    path: "internal/repository/memory_user_repository.go",
+    symbol: "MemoryUserRepository.Save",
+    recursive: true,
+    max_depth: 5,
+  });
+
+  assert.equal(engineClient.requests.length, 1);
+  assert.deepEqual(engineClient.requests[0], {
+    id: engineClient.requests[0] && (engineClient.requests[0] as { id: string }).id,
+    capability: "workspace.trace_callers",
+    workspaceRoot: "/workspace",
+    payload: {
+      path: "internal/repository/memory_user_repository.go",
+      symbol: "MemoryUserRepository.Save",
+      analyzerLanguage: "go",
+      publicLanguageFilter: "go",
+      recursive: true,
+      maxDepth: 5,
+    },
+  });
+});

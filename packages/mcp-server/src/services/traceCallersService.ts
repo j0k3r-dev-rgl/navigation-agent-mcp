@@ -45,8 +45,8 @@ export function createTraceCallersService(options: {
           payload: {
             path: input.path,
             symbol: input.symbol,
-            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
             recursive: input.recursive,
             maxDepth: input.recursive ? resolveMaxDepth(input.max_depth) : null,
           },
@@ -81,7 +81,7 @@ function buildSuccessResponse(
   input: TraceCallersInput,
   result: TraceCallersEngineResult,
 ): ResponseEnvelope<TraceCallersData> {
-  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
   const count = result.totalMatched;
 
   return {

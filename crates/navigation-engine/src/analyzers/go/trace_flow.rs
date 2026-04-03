@@ -4,8 +4,9 @@ use tree_sitter::{Node, Parser};
 
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::{
-    extract_go_file_context, extract_go_function_context, go_module_name, go_module_root,
-    go_symbol_matches_target, node_text, resolve_go_call_target, GoFileContext, GoFunctionContext,
+    extract_go_file_context, extract_go_function_context_with_file_context, go_module_name,
+    go_module_root, go_symbol_matches_target, node_text, resolve_go_call_target, GoFileContext,
+    GoFunctionContext,
 };
 
 pub(super) fn find_callees(
@@ -74,7 +75,12 @@ fn collect_go_callees(
             .unwrap_or(false);
 
     let next_function = if is_target {
-        extract_go_function_context(node, source)
+        extract_go_function_context_with_file_context(
+            node,
+            source,
+            &ctx.file_context,
+            ctx.current_file,
+        )
     } else {
         current_function.clone()
     };

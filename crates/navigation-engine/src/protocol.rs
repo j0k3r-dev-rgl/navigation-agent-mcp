@@ -249,8 +249,28 @@ pub struct TraceCallersItem {
     pub column: Option<u32>,
     pub caller: String,
     pub caller_symbol: Option<String>,
+    pub caller_range: TraceCallersCallerRange,
+    pub call_site: TraceCallersCallSite,
+    pub calls: TraceCallersCallsTarget,
     pub relation: String,
     pub language: Option<String>,
+    pub snippet: Option<String>,
+    pub receiver_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceCallersCallerRange {
+    pub start_line: u32,
+    pub end_line: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceCallersCallSite {
+    pub line: u32,
+    pub column: Option<u32>,
+    pub relation: String,
     pub snippet: Option<String>,
     pub receiver_type: Option<String>,
 }
@@ -324,6 +344,9 @@ pub struct TraceCallersClassificationRecord {
     pub path: String,
     pub symbol: String,
     pub caller: String,
+    pub caller_symbol: Option<String>,
+    pub caller_range: TraceCallersCallerRange,
+    pub call_site: TraceCallersCallSite,
     pub depth: u32,
     pub line: u32,
     pub column: Option<u32>,

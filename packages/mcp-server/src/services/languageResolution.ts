@@ -4,6 +4,7 @@ import type { AnalyzerLanguage } from "../engine/protocol.js";
 export function resolveEffectiveLanguage(
   language: PublicLanguage | null | undefined,
   framework: PublicFramework | null | undefined,
+  path?: string | null,
 ): PublicLanguage | null {
   if (language) {
     return language;
@@ -14,14 +15,18 @@ export function resolveEffectiveLanguage(
   if (framework === "spring") {
     return "java";
   }
+  if (path) {
+    return inferLanguageFromPath(path);
+  }
   return null;
 }
 
 export function resolveAnalyzerLanguage(
   language: PublicLanguage | null | undefined,
   framework: PublicFramework | null | undefined,
+  path?: string | null,
 ): AnalyzerLanguage {
-  const effective = resolveEffectiveLanguage(language, framework);
+  const effective = resolveEffectiveLanguage(language, framework, path);
 
   if (effective === "go") {
     return "go";

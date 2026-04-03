@@ -43,8 +43,8 @@ export function createTraceFlowService(options: {
           payload: {
             path: input.path,
             symbol: input.symbol,
-            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
           },
         });
       } catch (error) {
@@ -78,9 +78,8 @@ function buildSuccessResponse(
   result: TraceFlowEngineResult,
 ): ResponseEnvelope<TraceFlowData> {
   const entrypointPath = result.resolvedPath ?? input.path;
-  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
-  const fileCount = result.items.length;
-  const calleeCount = result.callees?.length ?? 0;
+  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
+  const calleeCount = countRootChildren(result.root);
 
   return {
     tool: TOOL_NAME,
@@ -92,23 +91,7 @@ function buildSuccessResponse(
         symbol: input.symbol,
         language: inferLanguageFromPath(entrypointPath),
       },
-      fileCount,
-      items: result.items.map((item) => ({
-        path: item.path,
-        language: item.language,
-      })),
-      callees: (result.callees ?? []).map((callee) => ({
-        path: callee.path,
-        line: callee.line,
-        endLine: callee.endLine,
-        column: callee.column,
-        callee: callee.callee,
-        calleeSymbol: callee.calleeSymbol,
-        relation: callee.relation,
-        language: callee.language,
-        snippet: callee.snippet,
-        depth: callee.depth,
-      })),
+      root: mapTraceFlowNode(result.root),
     },
     errors: [],
     meta: createResponseMeta({
@@ -116,8 +99,8 @@ function buildSuccessResponse(
       resolvedPath: result.resolvedPath,
       truncated: result.truncated,
       counts: {
-        returnedCount: fileCount,
-        totalMatched: result.totalMatched,
+        returnedCount: calleeCount,
+        totalMatched: calleeCount,
       },
       detection: {
         effectiveLanguage,
@@ -251,9 +234,7 @@ function emptyData(path = "", symbol = ""): TraceFlowData {
       symbol,
       language: inferLanguageFromPath(path),
     },
-    fileCount: 0,
-    items: [],
-    callees: [],
+    root: null,
   };
 }
 
@@ -265,4 +246,27 @@ function buildSummary(symbol: string, path: string, calleeCount: number): string
     return `Traced 1 callee for '${symbol}' from '${path}'.`;
   }
   return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
+}
+
+function countRootChildren(root: TraceFlowEngineResult["root"]): number {
+  return root?.callers.length ?? 0;
+}
+
+function mapTraceFlowNode(node: TraceFlowEngineResult["root"]): TraceFlowData["root"] {
+  if (!node) {
+    return null;
+  }
+  return {
+    symbol: node.symbol,
+    path: node.path,
+    kind: node.kind,
+    rangeLine: {
+      init: node.rangeLine.init,
+      end: node.rangeLine.end,
+    },
+    via: node.via ?? null,
+    callers: node.callers.map((child) => mapTraceFlowNode(child)).filter(Boolean) as NonNullable<
+      TraceFlowData["root"]
+    >["callers"],
+  };
 }

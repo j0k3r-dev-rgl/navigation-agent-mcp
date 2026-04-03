@@ -179,29 +179,30 @@ export interface TraceFlowEntrypoint {
   language: PublicLanguage | null;
 }
 
-export interface TraceFlowFile {
-  path: string;
-  language: PublicLanguage | null;
+export interface TraceFlowLineRange {
+  init: number;
+  end: number;
 }
 
-export interface TraceFlowCallee {
-  path: string;
+export interface TraceFlowVia {
   line: number;
-  endLine: number;
   column: number | null;
-  callee: string;
-  calleeSymbol: string | null;
-  relation: string;
-  language: PublicLanguage | null;
   snippet: string | null;
-  depth: number;
+  receiverType: string | null;
+}
+
+export interface TraceFlowNode {
+  symbol: string;
+  path: string;
+  kind: string;
+  rangeLine: TraceFlowLineRange;
+  via: TraceFlowVia[] | null;
+  callers: TraceFlowNode[];
 }
 
 export interface TraceFlowData {
   entrypoint: TraceFlowEntrypoint;
-  fileCount: number;
-  items: TraceFlowFile[];
-  callees: TraceFlowCallee[];
+  root: TraceFlowNode | null;
 }
 
 export interface TraceCallersInput {
@@ -225,8 +226,24 @@ export interface TraceCallerRecord {
   column: number | null;
   caller: string;
   callerSymbol: string | null;
+  callerRange: TraceCallersCallerRange;
+  callSite: TraceCallersCallSite;
+  calls: TraceCallersCallsTarget;
   relation: string;
   language: PublicLanguage | null;
+  snippet: string | null;
+  receiverType: string | null;
+}
+
+export interface TraceCallersCallerRange {
+  startLine: number;
+  endLine: number;
+}
+
+export interface TraceCallersCallSite {
+  line: number;
+  column: number | null;
+  relation: string;
   snippet: string | null;
   receiverType: string | null;
 }
@@ -284,6 +301,9 @@ export interface TraceCallersClassificationRecord {
   path: string;
   symbol: string;
   caller: string;
+  callerSymbol: string | null;
+  callerRange: TraceCallersCallerRange;
+  callSite: TraceCallersCallSite;
   depth: number;
   line: number;
   column: number | null;

@@ -243,3 +243,84 @@ fn traces_recursive_go_callers_end_to_end() {
         "RegisterRoutes"
     );
 }
+
+#[test]
+fn traces_go_method_value_callers_from_handler_registration() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("cmd/api")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/http/handlers")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/service")).unwrap();
+    std::fs::write(
+        workspace.path().join("go.mod"),
+        "module example/app\n\ngo 1.23.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/service/user_service.go"),
+        "package service\n\ntype UserService struct{}\n\nfunc (s *UserService) CreateUser() {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/http/handlers/user_handler.go"),
+        "package handlers\n\nimport \"example/app/internal/service\"\n\ntype UserHandler struct { service *service.UserService }\n\nfunc (h *UserHandler) CreateUser() {\n    h.service.CreateUser()\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("cmd/api/main.go"),
+        "package main\n\nimport (\n    \"net/http\"\n    \"example/app/internal/http/handlers\"\n)\n\nfunc main() {\n    handler := &handlers.UserHandler{}\n    mux := http.NewServeMux()\n    mux.HandleFunc(\"POST /users\", handler.CreateUser)\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "internal/http/handlers/user_handler.go".to_string(),
+            symbol: "UserHandler.CreateUser".to_string(),
+            analyzer_language: "go".to_string(),
+            public_language_filter: Some("go".to_string()),
+            recursive: true,
+            max_depth: Some(3),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].path, "cmd/api/main.go");
+    assert_eq!(result.items[0].caller_symbol.as_deref(), Some("main"));
+    assert_eq!(result.items[0].relation, "references");
+}
+
+#[test]
+fn traces_go_interface_callers_to_concrete_repository_implementation() {
+    let result = trace_callers(
+        "/home/j0k3r/navigation-agent-mcp/examples/go",
+        TraceCallersRequestPayload {
+            path: "internal/repository/memory_user_repository.go".to_string(),
+            symbol: "MemoryUserRepository.Save".to_string(),
+            analyzer_language: "go".to_string(),
+            public_language_filter: Some("go".to_string()),
+            recursive: true,
+            max_depth: Some(5),
+        },
+    )
+    .unwrap();
+
+    assert!(
+        result
+            .items
+            .iter()
+            .any(|item| item.caller_symbol.as_deref() == Some("UserService.persistUser")),
+        "expected persistUser direct caller, got: {:?}",
+        result.items
+    );
+    let recursive = result.recursive.expect("expected recursive result");
+    assert!(
+        recursive
+            .classifications
+            .indirect_callers
+            .iter()
+            .any(|item| item.symbol == "UserService.CreateUser"),
+        "expected CreateUser indirect caller, got: {:?}",
+        recursive.classifications.indirect_callers
+    );
+}

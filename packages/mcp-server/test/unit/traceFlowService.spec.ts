@@ -26,25 +26,30 @@ test("traceFlowService shapes requests for the engine and preserves the public e
     ok: true,
     result: {
       resolvedPath: "src/routes/dashboard.tsx",
-      items: [
-        { path: "back/src/main/java/com/acme/HomeController.java", language: "java" },
-        { path: "src/routes/dashboard.tsx", language: "typescript" },
-      ],
-      callees: [
-        {
-          path: "src/shared/api.ts",
-          line: 10,
-          endLine: 15,
-          column: 5,
-          callee: "fetchData",
-          calleeSymbol: "fetchData",
-          relation: "calls",
-          language: "typescript",
-          snippet: "fetchData()",
-          depth: 1,
-        },
-      ],
-      totalMatched: 2,
+      root: {
+        symbol: "loader",
+        path: "src/routes/dashboard.tsx",
+        kind: "function",
+        rangeLine: { init: 5, end: 20 },
+        via: null,
+        callers: [
+          {
+            symbol: "fetchData",
+            path: "src/shared/api.ts",
+            kind: "function",
+            rangeLine: { init: 10, end: 15 },
+            via: [
+              {
+                line: 12,
+                column: 5,
+                snippet: "fetchData()",
+                receiverType: null,
+              },
+            ],
+            callers: [],
+          },
+        ],
+      },
       truncated: false,
     },
   });
@@ -79,10 +84,9 @@ test("traceFlowService shapes requests for the engine and preserves the public e
     symbol: "loader",
     language: "typescript",
   });
-  assert.equal(result.data.fileCount, 2);
-  assert.equal(result.data.callees.length, 1);
-  assert.equal(result.data.callees[0].callee, "fetchData");
-  assert.deepEqual(result.meta.counts, { returnedCount: 2, totalMatched: 2 });
+  assert.equal(result.data.root?.callers.length, 1);
+  assert.equal(result.data.root?.callers[0]?.symbol, "fetchData");
+  assert.deepEqual(result.meta.counts, { returnedCount: 1, totalMatched: 1 });
 });
 
 test("traceFlowService maps path and unsupported-capability failures to stable responses", async () => {

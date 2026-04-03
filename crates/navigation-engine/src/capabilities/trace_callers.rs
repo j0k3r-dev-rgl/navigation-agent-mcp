@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::analyzers::{AnalyzerLanguage, AnalyzerRegistry, CallerDefinition, FindCallersQuery};
 use crate::error::EngineError;
 use crate::protocol::{
-    EngineRequest, EngineResponse, TraceCallersCallsTarget, TraceCallersClassificationRecord,
-    TraceCallersItem, TraceCallersProbableEntryPoint, TraceCallersRecursiveClassifications,
+    EngineRequest, EngineResponse, TraceCallersCallSite, TraceCallersCallerRange,
+    TraceCallersCallsTarget, TraceCallersClassificationRecord, TraceCallersItem,
+    TraceCallersProbableEntryPoint, TraceCallersRecursiveClassifications,
     TraceCallersRecursiveCycle, TraceCallersRecursiveNode, TraceCallersRecursivePathSegment,
     TraceCallersRecursiveResult, TraceCallersRecursiveSummary, TraceCallersRecursiveVia,
     TraceCallersRequestPayload, TraceCallersResult,
@@ -384,6 +385,21 @@ fn map_item(item: &CallerDefinition) -> TraceCallersItem {
         column: item.column,
         caller: item.caller.clone(),
         caller_symbol: item.caller_symbol.clone(),
+        caller_range: TraceCallersCallerRange {
+            start_line: item.caller_range.start_line,
+            end_line: item.caller_range.end_line,
+        },
+        call_site: TraceCallersCallSite {
+            line: item.call_site.line,
+            column: item.call_site.column,
+            relation: item.call_site.relation.clone(),
+            snippet: item.call_site.snippet.clone(),
+            receiver_type: item.call_site.receiver_type.clone(),
+        },
+        calls: TraceCallersCallsTarget {
+            path: item.calls.path.clone(),
+            symbol: item.calls.symbol.clone(),
+        },
         relation: item.relation.clone(),
         language: item.language.clone(),
         snippet: item.snippet.clone(),
@@ -407,6 +423,18 @@ fn map_classification(
             .clone()
             .unwrap_or_else(|| caller.caller.clone()),
         caller: caller.caller.clone(),
+        caller_symbol: caller.caller_symbol.clone(),
+        caller_range: TraceCallersCallerRange {
+            start_line: caller.caller_range.start_line,
+            end_line: caller.caller_range.end_line,
+        },
+        call_site: TraceCallersCallSite {
+            line: caller.call_site.line,
+            column: caller.call_site.column,
+            relation: caller.call_site.relation.clone(),
+            snippet: caller.call_site.snippet.clone(),
+            receiver_type: caller.call_site.receiver_type.clone(),
+        },
         depth,
         line: caller.line,
         column: caller.column,

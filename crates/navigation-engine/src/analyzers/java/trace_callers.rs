@@ -3,7 +3,8 @@ use std::path::Path;
 use tree_sitter::{Node, Parser};
 
 use super::super::types::{
-    infer_public_language, CallerDefinition, CallerTarget, FindCallersQuery,
+    infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
+    FindCallersQuery,
 };
 use super::common::{
     extract_annotation_name, extract_marker_annotation_name, find_modifiers_child, node_text,
@@ -47,7 +48,7 @@ fn collect_java_callers(
     public_language: Option<&str>,
     query: &FindCallersQuery,
     current_class: Option<String>,
-    current_method: Option<(String, Vec<String>)>,
+    current_method: Option<(String, Vec<String>, CallerRange)>,
     callers: &mut Vec<CallerDefinition>,
 ) {
     let next_class = if node.kind() == "class_declaration" {
@@ -71,7 +72,14 @@ fn collect_java_callers(
                 .map(|class_name| format!("{}#{}", class_name, method_name))
                 .unwrap_or_else(|| method_name.clone());
             let reasons = extract_probable_entry_point_reasons(node, source);
-            (caller_display, reasons)
+            (
+                caller_display,
+                reasons,
+                CallerRange {
+                    start_line: (node.start_position().row + 1) as u32,
+                    end_line: (node.end_position().row + 1) as u32,
+                },
+            )
         })
     } else {
         current_method.clone()
@@ -104,7 +112,7 @@ fn extract_java_call(
     source: &[u8],
     public_language: Option<&str>,
     query: &FindCallersQuery,
-    current_method: &Option<(String, Vec<String>)>,
+    current_method: &Option<(String, Vec<String>, CallerRange)>,
 ) -> Option<CallerDefinition> {
     let name = node
         .child_by_field_name("name")
@@ -113,7 +121,7 @@ fn extract_java_call(
         return None;
     }
 
-    let (caller_display, reasons) = current_method.as_ref()?.clone();
+    let (caller_display, reasons, caller_range) = current_method.as_ref()?.clone();
     let receiver_type = node
         .child_by_field_name("object")
         .and_then(|item| node_text(item, source));
@@ -128,6 +136,14 @@ fn extract_java_call(
         language: public_language.map(str::to_string),
         snippet: node_text(node, source),
         receiver_type: receiver_type.clone(),
+        caller_range,
+        call_site: CallerCallSite {
+            line: (node.start_position().row + 1) as u32,
+            column: Some((node.start_position().column + 1) as u32),
+            relation: "calls".to_string(),
+            snippet: node_text(node, source),
+            receiver_type: receiver_type.clone(),
+        },
         calls: CallerTarget {
             path: query.target_path.to_string_lossy().replace('\\', "/"),
             symbol: query.target_symbol.clone(),

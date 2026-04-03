@@ -4,7 +4,8 @@ use std::path::Path;
 use tree_sitter::{Node, Parser};
 
 use super::super::types::{
-    infer_public_language, CallerDefinition, CallerTarget, FindCallersQuery,
+    infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
+    FindCallersQuery,
 };
 use super::common::node_text;
 
@@ -29,6 +30,7 @@ struct FunctionContext {
     owner_name: Option<String>,
     local_bindings: HashMap<String, String>,
     probable_entry_point_reasons: Vec<String>,
+    caller_range: CallerRange,
 }
 
 struct ResolvedCall {
@@ -146,6 +148,10 @@ fn derive_function_context(node: Node, source: &[u8]) -> Option<FunctionContext>
         owner_name,
         local_bindings,
         probable_entry_point_reasons,
+        caller_range: CallerRange {
+            start_line: (node.start_position().row + 1) as u32,
+            end_line: (node.end_position().row + 1) as u32,
+        },
     })
 }
 
@@ -156,6 +162,7 @@ fn extract_call_reference(
     ctx: &CallerContext,
 ) -> Option<CallerDefinition> {
     let call_target = extract_call_target(node, source, function_context)?;
+    let receiver_type = call_target.receiver_type.clone();
     if !ctx.target.matches(call_target.symbol.as_str()) {
         return None;
     }
@@ -178,7 +185,15 @@ fn extract_call_reference(
         relation: "calls".to_string(),
         language: ctx.public_language.map(str::to_string),
         snippet: node_text(node, source),
-        receiver_type: call_target.receiver_type,
+        receiver_type: receiver_type.clone(),
+        caller_range: function_context.caller_range.clone(),
+        call_site: CallerCallSite {
+            line: (node.start_position().row + 1) as u32,
+            column: Some((node.start_position().column + 1) as u32),
+            relation: "calls".to_string(),
+            snippet: node_text(node, source),
+            receiver_type,
+        },
         calls: CallerTarget {
             path: ctx.target_path.to_string_lossy().replace('\\', "/"),
             symbol: ctx.target.full.to_string(),

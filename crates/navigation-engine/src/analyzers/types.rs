@@ -88,6 +88,23 @@ pub struct CallerTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CallerRange {
+    pub start_line: u32,
+    pub end_line: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CallerCallSite {
+    pub line: u32,
+    pub column: Option<u32>,
+    pub relation: String,
+    pub snippet: Option<String>,
+    pub receiver_type: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CallerDefinition {
     pub path: String,
     pub line: u32,
@@ -98,6 +115,8 @@ pub struct CallerDefinition {
     pub language: Option<String>,
     pub snippet: Option<String>,
     pub receiver_type: Option<String>,
+    pub caller_range: CallerRange,
+    pub call_site: CallerCallSite,
     pub calls: CallerTarget,
     pub probable_entry_point_reasons: Vec<String>,
 }

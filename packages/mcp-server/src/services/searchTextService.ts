@@ -39,7 +39,7 @@ export function createSearchTextService(options: {
           payload: {
             query: input.query,
             path: input.path ?? null,
-            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
             include: input.include ?? null,
             regex: input.regex,
             context: input.context,
@@ -81,7 +81,7 @@ function buildSuccessResponse(
     (total, item) => total + item.matchCount,
     0,
   );
-  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
 
   return {
     tool: TOOL_NAME,

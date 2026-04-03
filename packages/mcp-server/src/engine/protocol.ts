@@ -175,30 +175,31 @@ export interface TraceFlowEnginePayload {
   publicLanguageFilter: PublicLanguage | null;
 }
 
-export interface TraceFlowEngineItem {
-  path: string;
-  language: PublicLanguage | null;
+export interface TraceFlowEngineLineRange {
+  init: number;
+  end: number;
 }
 
-export interface TraceFlowEngineCallee {
-  path: string;
+export interface TraceFlowEngineVia {
   line: number;
-  endLine: number;
   column: number | null;
-  callee: string;
-  calleeSymbol: string | null;
-  relation: string;
-  language: PublicLanguage | null;
   snippet: string | null;
-  depth: number;
+  receiverType: string | null;
+}
+
+export interface TraceFlowEngineNode {
+  symbol: string;
+  path: string;
+  kind: string;
+  rangeLine: TraceFlowEngineLineRange;
+  via?: TraceFlowEngineVia[] | null;
+  callers: TraceFlowEngineNode[];
 }
 
 export interface TraceFlowEngineResult {
   resolvedPath: string | null;
-  items: TraceFlowEngineItem[];
-  callees: TraceFlowEngineCallee[];
-  totalMatched: number;
   truncated: boolean;
+  root: TraceFlowEngineNode | null;
 }
 
 export interface TraceCallersEnginePayload {
@@ -221,8 +222,24 @@ export interface TraceCallersEngineItem {
   column: number | null;
   caller: string;
   callerSymbol: string | null;
+  callerRange: TraceCallersEngineCallerRange;
+  callSite: TraceCallersEngineCallSite;
+  calls: TraceCallersEngineTarget;
   relation: string;
   language: PublicLanguage | null;
+  snippet: string | null;
+  receiverType: string | null;
+}
+
+export interface TraceCallersEngineCallerRange {
+  startLine: number;
+  endLine: number;
+}
+
+export interface TraceCallersEngineCallSite {
+  line: number;
+  column: number | null;
+  relation: string;
   snippet: string | null;
   receiverType: string | null;
 }
@@ -275,6 +292,9 @@ export interface TraceCallersEngineClassificationRecord {
   path: string;
   symbol: string;
   caller: string;
+  callerSymbol: string | null;
+  callerRange: TraceCallersEngineCallerRange;
+  callSite: TraceCallersEngineCallSite;
   depth: number;
   line: number;
   column: number | null;

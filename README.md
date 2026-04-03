@@ -95,11 +95,11 @@ This table MUST stay in the README because it is the fastest way to understand t
 | Capability | Java | TypeScript / JavaScript | Python | Rust | Go | All Files |
 |---|---|---|---|---|---|---|
 | `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
-| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Real validation returned no symbol definitions | — |
+| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
 | `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
-| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Publicly exposed; chosen Rust project had no web endpoints to validate against | ❌ Real validation returned no useful endpoint support | — |
-| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified for same-file React Router route flow | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ❌ Returns empty results in real `examples/go` validation | — |
-| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified for same-file helper callers | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Exposed, but real validated case is still incomplete | ❌ Real validation fails | — |
+| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
 
 Legend:
 
@@ -110,8 +110,8 @@ Legend:
 
 Important:
 
-- Go analyzer work exists internally in Rust, but **Go is not part of the public TS contract yet**.
-- Rust `code.trace_callers` is exposed publicly, but the real validated case still showed incomplete behavior.
+- Go is now part of the public contract and works well for symbol lookup, text search, trace flow, and trace callers on the validated example app.
+- Rust trace tools work well, but method/impl symbols should be queried with their qualified name (for example `JavaProjectIndex::build`).
 
 ---
 
@@ -185,37 +185,34 @@ Verified example:
 Verified example:
 - `app/routes/change-password.tsx#action`
 - found calls to `getUserIdAndTokenFromSession`, `changeMyPassword`, `getSession`, `commitSession`, `getRoleRoute`
+- reverse-traced `getRoleRoute <- action`
 
 ### Rust (this repository)
 
 - `code.inspect_tree` works on real Rust source trees
 - `code.find_symbol` works on Rust types/functions
 - `code.search_text` works on real Rust source
-- `code.trace_flow` works on real Rust methods, including the recent local-binding slice in `trace_flow.rs`
-- `code.trace_callers` is exposed publicly, but the real Rust case validated here still returned no callers for symbols that do have callers in code
+- `code.trace_flow` works on real Rust methods when queried with the correct qualified symbol
+- `code.trace_callers` works on real Rust methods when queried with the correct qualified symbol
 
 Notes:
 - `code.list_endpoints` returned zero results on this repository, which is expected for the chosen validation target because it is not a Rust web app
 
 Verified example:
-- `crates/navigation-engine/src/capabilities/trace_flow.rs#build`
+- `crates/navigation-engine/src/capabilities/trace_flow.rs#JavaProjectIndex::build`
 - traced `Self::new_empty()`, `index.scan_project(workspace_root)`, and `index.is_empty()`
+- reverse-traced `JavaProjectIndex::scan_project <- JavaProjectIndex::build`
 
 ### Go (`./examples/go`)
-
-Go analyzer work exists in the Rust engine, but **Go is not part of the public TypeScript contract yet**.
 
 Real behavior today against `examples/go`:
 
 - `code.inspect_tree` works
 - `code.search_text` works
-- `code.find_symbol` did **not** find `UserHandler`
-- `code.find_symbol` also did **not** find `CreateUser`
-- `code.list_endpoints` returned no useful support
-- `code.trace_flow` on `CreateUser` returned `ok` but with **no callees**
-- `code.trace_callers` on `NewUser` returned **backend execution failed**
-
-So Go should be documented as **work in progress / not publicly supported yet**, not as a stable supported language.
+- `code.find_symbol` works for method lookup such as `CreateUser`
+- `code.trace_flow` works end-to-end on the example app and returns the recursive internal call tree
+- `code.trace_callers` works end-to-end on the example app, including callback/method-value references and interface-to-implementation reverse matches
+- `code.list_endpoints` still returns no useful endpoint detection for the current Go example
 
 ---
 
@@ -225,6 +222,7 @@ Current public language filters:
 
 - `typescript`
 - `javascript`
+- `go`
 - `java`
 - `python`
 - `rust`
@@ -288,10 +286,21 @@ Important:
 
 ## Contributing / local development
 
-See:
+Key local commands:
 
-- [docs/development.md](docs/development.md)
-- [docs/overview.md](docs/overview.md)
+```bash
+npm install
+npm --workspace @navigation-agent/mcp-server run check
+npm --workspace @navigation-agent/mcp-server run test
+cargo test --manifest-path crates/navigation-engine/Cargo.toml
+```
+
+Useful local runtime checks:
+
+```bash
+npx tsx packages/mcp-server/src/bin/navigation-mcp.ts --describe-tools
+npx tsx packages/mcp-server/src/bin/navigation-mcp.ts --transport stdio-legacy --workspace-root /path/to/workspace
+```
 
 ## License
 

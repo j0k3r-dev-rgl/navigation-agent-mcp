@@ -1,8 +1,9 @@
 use navigation_engine::protocol::{
     FindSymbolItem, FindSymbolRequestPayload, FindSymbolResult, SearchTextContextLine,
     SearchTextFileMatch, SearchTextMatch, SearchTextRequestPayload, SearchTextResult,
-    SearchTextSubmatch, TraceCallersItem, TraceCallersRequestPayload, TraceCallersResult,
-    TraceFlowLineRange, TraceFlowNode, TraceFlowRequestPayload, TraceFlowResult, TraceFlowVia,
+    SearchTextSubmatch, TraceCallersCallSite, TraceCallersCallerRange, TraceCallersCallsTarget,
+    TraceCallersItem, TraceCallersRequestPayload, TraceCallersResult, TraceFlowLineRange,
+    TraceFlowNode, TraceFlowRequestPayload, TraceFlowResult, TraceFlowVia,
 };
 
 #[test]
@@ -323,6 +324,21 @@ fn trace_callers_result_uses_camel_case_keys() {
             column: Some(3),
             caller: "Layout".to_string(),
             caller_symbol: Some("Layout".to_string()),
+            caller_range: TraceCallersCallerRange {
+                start_line: 1,
+                end_line: 24,
+            },
+            call_site: TraceCallersCallSite {
+                line: 9,
+                column: Some(3),
+                relation: "calls".to_string(),
+                snippet: Some("loader()".to_string()),
+                receiver_type: None,
+            },
+            calls: TraceCallersCallsTarget {
+                path: "src/routes/dashboard.tsx".to_string(),
+                symbol: "loader".to_string(),
+            },
             relation: "calls".to_string(),
             language: Some("typescript".to_string()),
             snippet: Some("loader()".to_string()),
@@ -343,6 +359,21 @@ fn trace_callers_result_uses_camel_case_keys() {
                 "column": 3,
                 "caller": "Layout",
                 "callerSymbol": "Layout",
+                "callerRange": {
+                    "startLine": 1,
+                    "endLine": 24
+                },
+                "callSite": {
+                    "line": 9,
+                    "column": 3,
+                    "relation": "calls",
+                    "snippet": "loader()",
+                    "receiverType": null
+                },
+                "calls": {
+                    "path": "src/routes/dashboard.tsx",
+                    "symbol": "loader"
+                },
                 "relation": "calls",
                 "language": "typescript",
                 "snippet": "loader()",

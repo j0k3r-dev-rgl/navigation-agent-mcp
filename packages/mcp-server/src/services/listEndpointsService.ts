@@ -40,8 +40,8 @@ export function createListEndpointsService(options: {
 					workspaceRoot: options.workspaceRoot,
 					payload: {
 						path: input.path ?? null,
-						analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-						publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+					analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+					publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
 						publicFrameworkFilter: input.framework ?? null,
 						kind: input.kind,
 						limit: input.limit,
@@ -77,7 +77,7 @@ function buildSuccessResponse(
 	input: ListEndpointsInput,
 	result: ListEndpointsEngineResult,
 ): ResponseEnvelope<ListEndpointsData> {
-	const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+	const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
 	const totalCount = result.totalMatched;
 	const returnedCount = result.items.length;
 

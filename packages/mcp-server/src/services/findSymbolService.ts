@@ -39,8 +39,8 @@ export function createFindSymbolService(options: {
           payload: {
             symbol: input.symbol,
             path: input.path ?? null,
-            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+            analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+            publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
             kind: input.kind,
             matchMode: input.match,
             limit: input.limit,
@@ -76,7 +76,7 @@ function buildSuccessResponse(
   input: FindSymbolInput,
   result: FindSymbolEngineResult,
 ): ResponseEnvelope<FindSymbolData> {
-  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+  const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
   const count = result.totalMatched;
   const returnedCount = result.items.length;
 
