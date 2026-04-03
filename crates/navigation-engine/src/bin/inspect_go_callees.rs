@@ -21,14 +21,7 @@ fn main() {
     let analyzer = registry
         .analyzer_for_file(AnalyzerLanguage::Go, &path)
         .unwrap();
-    let callees = analyzer.find_callees(
-        &path,
-        &source,
-        &FindCalleesQuery {
-            source_path: path.clone(),
-            target_symbol,
-        },
-    );
+    let callees = analyzer.find_callees(&path, &source, &FindCalleesQuery { target_symbol });
     for callee in callees {
         println!(
             "{} | path={} | snippet={:?}",

@@ -38,7 +38,6 @@ pub struct FindCallersQuery {
 
 #[derive(Debug, Clone)]
 pub struct FindCalleesQuery {
-    pub source_path: PathBuf,
     pub target_symbol: String,
 }
 

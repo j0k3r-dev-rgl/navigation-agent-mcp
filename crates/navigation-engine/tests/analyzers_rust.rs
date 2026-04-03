@@ -2,9 +2,8 @@ use std::path::Path;
 
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
 use navigation_engine::analyzers::rust::RustAnalyzer;
-use navigation_engine::analyzers::{
-    FindCalleesQuery, FindCallersQuery, FindEndpointsQuery, FindSymbolQuery,
-};
+use navigation_engine::analyzers::types::FindCalleesQuery;
+use navigation_engine::analyzers::{FindCallersQuery, FindEndpointsQuery, FindSymbolQuery};
 
 fn any_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -52,7 +51,6 @@ fn rust_callers_query(symbol: &str) -> FindCallersQuery {
 
 fn rust_callees_query(symbol: &str) -> FindCalleesQuery {
     FindCalleesQuery {
-        source_path: Path::new("src/lib.rs").to_path_buf(),
         target_symbol: symbol.to_string(),
     }
 }

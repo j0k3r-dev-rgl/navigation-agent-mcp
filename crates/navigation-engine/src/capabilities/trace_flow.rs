@@ -614,7 +614,6 @@ fn collect_child_nodes(
     };
 
     let query = FindCalleesQuery {
-        source_path: file_path.to_path_buf(),
         target_symbol: symbol.to_string(),
     };
 

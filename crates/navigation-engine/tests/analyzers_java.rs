@@ -2,9 +2,8 @@ use std::path::Path;
 
 use navigation_engine::analyzers::java::JavaAnalyzer;
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
-use navigation_engine::analyzers::{
-    FindCalleesQuery, FindCallersQuery, FindEndpointsQuery, FindSymbolQuery,
-};
+use navigation_engine::analyzers::types::FindCalleesQuery;
+use navigation_engine::analyzers::{FindCallersQuery, FindEndpointsQuery, FindSymbolQuery};
 
 fn any_symbol_query() -> FindSymbolQuery {
     FindSymbolQuery {
@@ -430,7 +429,6 @@ public class NavigationController {
 fn callees_query(target_symbol: &str) -> FindCalleesQuery {
     FindCalleesQuery {
         target_symbol: target_symbol.to_string(),
-        source_path: Path::new("src/main/java/com/example/Test.java").to_path_buf(),
     }
 }
 

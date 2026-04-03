@@ -2,7 +2,8 @@ use std::path::Path;
 
 use navigation_engine::analyzers::go::GoAnalyzer;
 use navigation_engine::analyzers::language_analyzer::LanguageAnalyzer;
-use navigation_engine::analyzers::{FindCalleesQuery, FindCallersQuery, FindSymbolQuery};
+use navigation_engine::analyzers::types::FindCalleesQuery;
+use navigation_engine::analyzers::{FindCallersQuery, FindSymbolQuery};
 use tempfile::tempdir;
 
 fn any_query() -> FindSymbolQuery {
@@ -83,7 +84,6 @@ func writeJSON() {}
         Path::new("internal/http/handlers/user_handler.go"),
         source,
         &FindCalleesQuery {
-            source_path: Path::new("internal/http/handlers/user_handler.go").to_path_buf(),
             target_symbol: "UserHandler.Handle".to_string(),
         },
     );
@@ -121,7 +121,6 @@ func (h *UserHandler) CreateUser() {
         Path::new("internal/http/handlers/user_handler.go"),
         source,
         &FindCalleesQuery {
-            source_path: Path::new("internal/http/handlers/user_handler.go").to_path_buf(),
             target_symbol: "CreateUser".to_string(),
         },
     );
@@ -201,7 +200,6 @@ fn traces_go_import_and_field_backed_callees_inside_service_method() {
         &service_path,
         &source,
         &FindCalleesQuery {
-            source_path: service_path.clone(),
             target_symbol: "UserService.CreateUser".to_string(),
         },
     );

@@ -15,7 +15,6 @@ fn main() {
         &path,
         &source,
         &FindCalleesQuery {
-            source_path: path.clone(),
             target_symbol: "action".to_string(),
         },
     );

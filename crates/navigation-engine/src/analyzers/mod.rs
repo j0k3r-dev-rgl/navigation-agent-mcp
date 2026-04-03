@@ -9,7 +9,7 @@ pub mod types;
 pub mod typescript;
 
 pub use common::{
-    AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
-    FindCallersQuery, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CallerDefinition, EndpointDefinition, FindCallersQuery, FindEndpointsQuery,
+    FindSymbolQuery, SymbolDefinition,
 };
 pub use registry::AnalyzerRegistry;
