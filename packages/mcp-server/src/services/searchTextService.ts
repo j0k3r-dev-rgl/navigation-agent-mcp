@@ -97,17 +97,12 @@ function buildSuccessResponse(
       matchCount: result.truncated ? returnedMatchCount : result.totalMatchCount,
       totalFileCount: result.totalFileCount,
       totalMatchCount: result.totalMatchCount,
+      topFiles: buildTopFiles(result.items),
       items: result.items.map((item) => ({
         path: item.path,
         language: item.language,
         matchCount: item.matchCount,
-        matches: item.matches.map((match) => ({
-          line: match.line,
-          text: match.text,
-          submatches: match.submatches.map((submatch) => ({ ...submatch })),
-          before: match.before.map((contextLine) => ({ ...contextLine })),
-          after: match.after.map((contextLine) => ({ ...contextLine })),
-        })),
+        matches: compactMatches(item.matches),
       })),
     },
     errors: result.truncated
@@ -157,6 +152,7 @@ function buildValidationErrorResponse(
       matchCount: 0,
       totalFileCount: 0,
       totalMatchCount: 0,
+      topFiles: [],
       items: [],
     },
     errors: [
@@ -274,8 +270,42 @@ function emptyData(): SearchTextData {
     matchCount: 0,
     totalFileCount: 0,
     totalMatchCount: 0,
+    topFiles: [],
     items: [],
   };
+}
+
+function compactMatches(matches: SearchTextEngineResult["items"][number]["matches"]) {
+  const byLine = new Map<number, { line: number; spans: Array<{ colInit: number; colEnd: number }> }>();
+
+  for (const match of matches) {
+    const current = byLine.get(match.line) ?? { line: match.line, spans: [] };
+    for (const submatch of match.submatches) {
+      current.spans.push({
+        colInit: submatch.start + 1,
+        colEnd: submatch.end,
+      });
+    }
+    byLine.set(match.line, current);
+  }
+
+  return Array.from(byLine.values())
+    .map((entry) => ({
+      line: entry.line,
+      spans: entry.spans.sort((a, b) => a.colInit - b.colInit || a.colEnd - b.colEnd),
+    }))
+    .sort((a, b) => a.line - b.line);
+}
+
+function buildTopFiles(items: SearchTextEngineResult["items"]) {
+  return [...items]
+    .sort((left, right) => right.matchCount - left.matchCount || left.path.localeCompare(right.path))
+    .slice(0, 5)
+    .map((item) => ({
+      path: item.path,
+      language: item.language,
+      matchCount: item.matchCount,
+    }));
 }
 
 function buildSummary(

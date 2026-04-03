@@ -13,8 +13,8 @@
 
 - `skills/navigation-mcp`
   - author: `j0k3r-dev-rgl`
-  - version: `1.4.0`
-  - notes: aligned with current public contract, removed docs/ dependency, and updated Go/Rust support snapshot
+  - version: `1.5.0`
+  - notes: aligned with current public contract, compact `search_text` grouped output, removed docs/ dependency, and updated Go/Rust support snapshot
 
 ## Available skills in this environment
 

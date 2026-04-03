@@ -153,6 +153,13 @@ test("searchTextService preserves the stable public envelope for partial results
     matchCount: 2,
     totalFileCount: 3,
     totalMatchCount: 5,
+    topFiles: [
+      {
+        path: "src/routes/a.ts",
+        language: "typescript",
+        matchCount: 2,
+      },
+    ],
     items: [
       {
         path: "src/routes/a.ts",
@@ -161,17 +168,11 @@ test("searchTextService preserves the stable public envelope for partial results
         matches: [
           {
             line: 10,
-            text: "export async function loader() {}",
-            submatches: [{ start: 22, end: 28, text: "loader" }],
-            before: [{ line: 9, text: "" }],
-            after: [{ line: 11, text: "return null;" }],
+            spans: [{ colInit: 23, colEnd: 28 }],
           },
           {
             line: 20,
-            text: "const loaderState = true;",
-            submatches: [{ start: 6, end: 12, text: "loader" }],
-            before: [],
-            after: [],
+            spans: [{ colInit: 7, colEnd: 12 }],
           },
         ],
       },

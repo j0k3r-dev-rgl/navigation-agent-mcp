@@ -128,6 +128,46 @@ The public contract exposes exactly these six tools:
 
 Use `snake_case` parameters such as `max_depth`, `include_hidden`, and `file_pattern`.
 
+### `code.search_text` response style
+
+`code.search_text` is optimized for agents:
+
+- results are grouped by file
+- each match returns only `line` plus exact `spans`
+- `topFiles` highlights the densest files first
+- contextual `before` / `after` text is intentionally omitted from the public response to reduce noise and token cost
+
+Example shape:
+
+```json
+{
+  "fileCount": 3,
+  "matchCount": 19,
+  "totalFileCount": 3,
+  "totalMatchCount": 19,
+  "topFiles": [
+    {
+      "path": "examples/go/internal/http/handlers/user_handler.go",
+      "language": "go",
+      "matchCount": 11
+    }
+  ],
+  "items": [
+    {
+      "path": "examples/go/internal/http/handlers/user_handler.go",
+      "language": "go",
+      "matchCount": 11,
+      "matches": [
+        {
+          "line": 28,
+          "spans": [{ "colInit": 23, "colEnd": 32 }]
+        }
+      ]
+    }
+  ]
+}
+```
+
 ### Quick examples
 
 ```json
@@ -260,6 +300,12 @@ Status meanings:
 - `ok` — request succeeded, including zero-result success
 - `partial` — request succeeded but was truncated/pruned
 - `error` — request failed and includes stable error codes
+
+Notes:
+
+- `code.trace_flow` returns a rooted recursive tree under `data.root`
+- `code.trace_callers` returns direct callers plus recursive reverse-trace metadata
+- `code.search_text` returns compact grouped matches and `topFiles`, not full context blocks
 
 ---
 

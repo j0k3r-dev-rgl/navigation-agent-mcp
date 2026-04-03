@@ -132,23 +132,14 @@ export interface SearchTextInput {
   limit: number;
 }
 
-export interface SearchTextContextLine {
-  line: number;
-  text: string;
-}
-
-export interface SearchTextSubmatch {
-  start: number;
-  end: number;
-  text: string;
+export interface SearchTextSpan {
+  colInit: number;
+  colEnd: number;
 }
 
 export interface SearchTextMatch {
   line: number;
-  text: string;
-  submatches: SearchTextSubmatch[];
-  before: SearchTextContextLine[];
-  after: SearchTextContextLine[];
+  spans: SearchTextSpan[];
 }
 
 export interface SearchTextFileMatch {
@@ -158,11 +149,18 @@ export interface SearchTextFileMatch {
   matches: SearchTextMatch[];
 }
 
+export interface SearchTextTopFile {
+  path: string;
+  language: PublicLanguage | null;
+  matchCount: number;
+}
+
 export interface SearchTextData {
   fileCount: number;
   matchCount: number;
   totalFileCount: number;
   totalMatchCount: number;
+  topFiles: SearchTextTopFile[];
   items: SearchTextFileMatch[];
 }
 

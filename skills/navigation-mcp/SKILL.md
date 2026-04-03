@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: opencode
 metadata:
   author: j0k3r-dev-rgl
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
 ## When to Use
@@ -29,6 +29,7 @@ metadata:
 6. The stable public MCP contract is `code.*`, not `workspace.*`.
 7. Current public languages are `typescript`, `javascript`, `go`, `java`, `python`, and `rust`.
 8. Go is now usable through the public contract for `find_symbol`, `search_text`, `trace_flow`, and `trace_callers`, but `list_endpoints` is still limited on the current example app.
+9. `search_text` is compact by design: treat it as grouped match coordinates (`path`, `language`, `matchCount`, `line`, `spans`) plus `topFiles`, then read only the files you actually need.
 
 ## Tool Decision Guide
 
@@ -266,6 +267,13 @@ Verified during the latest project sync:
 | `trace_callers` | ✅ | ✅ | ✅ with qualified symbols | ✅ |
 
 Use this table as guidance for expectations, not as a substitute for real validation.
+
+## Search Text Guidance
+
+- Start with `topFiles` to prioritize likely source files.
+- Use `matches[].line` + `spans` as exact coordinates.
+- Do not expect inline context text from `search_text`; follow up with `read()` on the top files you decide matter.
+- Broad queries like `go` or `.go` can still be noisy, but the grouped response makes them cheaper to triage.
 
 ## Anti-Patterns
 
