@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.5...v0.4.0) (2026-04-03)
+
+
+### Features
+
+* improve go tracing and agent analysis output ([62acdd1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/62acdd1df83cb77fb3fd88a9803e49db428d0ba2))
+
+
+### Bug Fixes
+
+* improve go trace flow recursion ([8ddffdc](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/8ddffdcd74031178596ca34a41ff8f6f8ef76ce8))
+* simplify internal rust analyzer contracts ([6d7971f](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/6d7971fe990bde9fd4d3ce782fa03920506ced3e))
+
 ## [0.3.5](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.4...v0.3.5) (2026-04-02)
 
 
