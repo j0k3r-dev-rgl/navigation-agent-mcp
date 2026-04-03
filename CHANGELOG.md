@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.4.0...v0.5.0) (2026-04-03)
+
+
+### Features
+
+* streamline search text output for agents ([5478c07](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/5478c073227ed8569e3ca419a6c03ec55a60d206))
+
 ## [0.4.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.3.5...v0.4.0) (2026-04-03)
 
 
