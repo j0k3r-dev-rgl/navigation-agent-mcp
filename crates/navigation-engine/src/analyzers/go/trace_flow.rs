@@ -5,7 +5,7 @@ use tree_sitter::{Node, Parser};
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::{
     extract_go_file_context, extract_go_function_context, go_module_name, go_module_root,
-    node_text, resolve_go_call_target, GoFileContext, GoFunctionContext,
+    go_symbol_matches_target, node_text, resolve_go_call_target, GoFileContext, GoFunctionContext,
 };
 
 pub(super) fn find_callees(
@@ -70,7 +70,7 @@ fn collect_go_callees(
 ) {
     let is_target = matches!(node.kind(), "function_declaration" | "method_declaration")
         && super::common::current_go_symbol(node, source)
-            .map(|symbol| symbol == ctx.target_symbol)
+            .map(|symbol| go_symbol_matches_target(&symbol, ctx.target_symbol))
             .unwrap_or(false);
 
     let next_function = if is_target {

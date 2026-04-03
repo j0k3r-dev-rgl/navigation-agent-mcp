@@ -3,7 +3,7 @@ use std::path::Path;
 use tree_sitter::{Node, Parser};
 
 use super::super::types::{infer_public_language, FindSymbolQuery, SymbolDefinition};
-use super::common::{node_text, simplify_go_type_name};
+use super::common::{go_symbol_matches_target, node_text, simplify_go_type_name};
 
 pub(super) fn find_symbols(
     path: &Path,
@@ -193,7 +193,7 @@ fn extract_receiver_type(receiver: Node, source: &[u8]) -> Option<String> {
 fn matches_symbol(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {
     let symbol_match = match query.match_mode.as_str() {
         "fuzzy" => item.symbol.contains(&query.symbol),
-        _ => item.symbol == query.symbol,
+        _ => go_symbol_matches_target(&item.symbol, &query.symbol),
     };
 
     let kind_match = query.kind == "any" || item.kind == query.kind;

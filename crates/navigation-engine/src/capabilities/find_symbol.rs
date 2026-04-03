@@ -139,8 +139,16 @@ fn matches_symbol(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {
             .symbol
             .to_ascii_lowercase()
             .contains(&query.symbol.to_ascii_lowercase()),
-        _ => item.symbol == query.symbol,
+        _ => exact_or_method_suffix_match(&item.symbol, &query.symbol),
     }
+}
+
+fn exact_or_method_suffix_match(candidate: &str, query: &str) -> bool {
+    candidate == query
+        || candidate
+            .rsplit_once('.')
+            .map(|(_, suffix)| suffix == query)
+            .unwrap_or(false)
 }
 
 fn matches_kind(item: &SymbolDefinition, query: &FindSymbolQuery) -> bool {

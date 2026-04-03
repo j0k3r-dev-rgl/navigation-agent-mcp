@@ -451,76 +451,7 @@ pub fn is_infrastructure_file(path: &str) -> bool {
     is_infrastructure_path || is_infrastructure_file
 }
 
-/// Check if a type is a known external framework/library type
-fn is_external_framework_type(type_name: &str) -> bool {
-    // Remove generic parameters if present
-    let base_type = type_name.split('<').next().unwrap_or(type_name).trim();
-    let lower = base_type.to_lowercase();
-
-    // Java standard library
-    if lower.starts_with("java.") || lower.starts_with("javax.") || lower.starts_with("jakarta.") {
-        return true;
-    }
-    // Spring framework
-    if lower.starts_with("org.springframework.") {
-        return true;
-    }
-    // Common utility classes
-    if matches!(
-        lower.as_str(),
-        "string"
-            | "object"
-            | "integer"
-            | "long"
-            | "double"
-            | "float"
-            | "boolean"
-            | "byte"
-            | "short"
-            | "character"
-            | "system"
-            | "math"
-            | "stringbuilder"
-            | "stringbuffer"
-    ) {
-        return true;
-    }
-    // Common collections
-    if matches!(
-        lower.as_str(),
-        "list" | "set" | "map" | "collection" | "arraylist" | "hashmap" | "hashset"
-    ) {
-        return true;
-    }
-    false
-}
-
-/// Add is_project_type method to JavaProjectIndex
-impl JavaProjectIndex {
-    /// Check if a type is part of the project (not external framework)
-    pub fn is_project_type(&self, type_name: &str) -> bool {
-        // Remove generic parameters if present
-        let base_type = type_name.split('<').next().unwrap_or(type_name).trim();
-        let simple_name = base_type.split('.').last().unwrap_or(base_type);
-
-        // Check if it's a known interface
-        if self.interface_names.contains(simple_name) {
-            return true;
-        }
-
-        // Check if it's in the simple to FQN mapping
-        if self.class_simple_to_fq.contains_key(simple_name) {
-            return true;
-        }
-
-        // Check if it's a fully qualified name in our index
-        if self.interface_paths.contains_key(base_type) {
-            return true;
-        }
-
-        false
-    }
-}
+impl JavaProjectIndex {}
 
 pub fn handle(request: EngineRequest) -> EngineResponse {
     let parsed_payload = serde_json::from_value::<TraceFlowRequestPayload>(request.payload.clone());
@@ -883,7 +814,25 @@ fn resolve_callee_targets(
             .unwrap_or_else(|| workspace_root.join(&callee.path))
     };
 
-    if resolve_symbol_metadata(
+    if candidate_path.is_dir() {
+        if let Some(scoped_match) = resolve_symbol_in_scope(
+            workspace_root,
+            &candidate_path,
+            &callee.callee,
+            analyzer_language,
+        )? {
+            direct_targets.push(scoped_match);
+        } else if let Some(global_match) =
+            resolve_symbol_globally(workspace_root, &callee.callee, analyzer_language)?
+        {
+            direct_targets.push(global_match);
+        } else {
+            direct_targets.push(ResolvedTraceTarget {
+                path: candidate_path,
+                symbol: callee.callee.clone(),
+            });
+        }
+    } else if resolve_symbol_metadata(
         workspace_root,
         &candidate_path,
         &callee.callee,
@@ -925,11 +874,47 @@ fn resolve_symbol_globally(
     symbol: &str,
     analyzer_language: AnalyzerLanguage,
 ) -> Result<Option<ResolvedTraceTarget>, EngineError> {
+    find_symbol_target(workspace_root, symbol, analyzer_language, None)
+}
+
+fn resolve_symbol_in_scope(
+    workspace_root: &std::path::Path,
+    scope_path: &std::path::Path,
+    symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+) -> Result<Option<ResolvedTraceTarget>, EngineError> {
+    if let Some(exact_match) = find_symbol_target(
+        workspace_root,
+        symbol,
+        analyzer_language,
+        Some(public_path(workspace_root, scope_path)),
+    )? {
+        return Ok(Some(exact_match));
+    }
+
+    let Some((_, terminal_symbol)) = symbol.rsplit_once('.') else {
+        return Ok(None);
+    };
+
+    find_symbol_target(
+        workspace_root,
+        terminal_symbol,
+        analyzer_language,
+        Some(public_path(workspace_root, scope_path)),
+    )
+}
+
+fn find_symbol_target(
+    workspace_root: &std::path::Path,
+    symbol: &str,
+    analyzer_language: AnalyzerLanguage,
+    path: Option<String>,
+) -> Result<Option<ResolvedTraceTarget>, EngineError> {
     let result = find_symbol(
         workspace_root.to_string_lossy().as_ref(),
         FindSymbolRequestPayload {
             symbol: symbol.to_string(),
-            path: None,
+            path,
             analyzer_language: analyzer_language_name(analyzer_language).to_string(),
             public_language_filter: None,
             kind: "any".to_string(),
@@ -951,7 +936,6 @@ fn resolve_symbol_globally(
 #[derive(Debug, Clone)]
 struct SymbolMetadata {
     symbol: String,
-    kind: String,
     line: u32,
     line_end: u32,
 }
@@ -979,13 +963,20 @@ fn resolve_symbol_metadata(
     Ok(result
         .items
         .into_iter()
-        .find(|item| item.symbol == symbol)
+        .find(|item| symbol_matches_target(&item.symbol, symbol))
         .map(|item| SymbolMetadata {
             symbol: item.symbol,
-            kind: item.kind,
             line: item.line,
             line_end: item.line_end,
         }))
+}
+
+fn symbol_matches_target(candidate: &str, target: &str) -> bool {
+    candidate == target
+        || candidate
+            .rsplit_once('.')
+            .map(|(_, suffix)| suffix == target)
+            .unwrap_or(false)
 }
 
 fn merge_trace_node(

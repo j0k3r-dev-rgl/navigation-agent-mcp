@@ -100,6 +100,124 @@ func writeJSON() {}
 }
 
 #[test]
+fn traces_go_method_callees_when_target_uses_simple_method_name() {
+    let analyzer = GoAnalyzer;
+    let source = r#"
+package handlers
+
+import "example/app/internal/service"
+
+type UserHandler struct { service *service.UserService }
+
+func writeJSON() {}
+
+func (h *UserHandler) CreateUser() {
+    h.service.CreateUser()
+    writeJSON()
+}
+"#;
+
+    let callees = analyzer.find_callees(
+        Path::new("internal/http/handlers/user_handler.go"),
+        source,
+        &FindCalleesQuery {
+            source_path: Path::new("internal/http/handlers/user_handler.go").to_path_buf(),
+            target_symbol: "CreateUser".to_string(),
+        },
+    );
+
+    let names = callees
+        .iter()
+        .map(|item| item.callee.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        names.contains(&"UserService.CreateUser"),
+        "names were: {names:?}"
+    );
+    assert!(names.contains(&"writeJSON"), "names were: {names:?}");
+}
+
+#[test]
+fn finds_go_methods_by_simple_name_in_exact_mode() {
+    let analyzer = GoAnalyzer;
+    let source = r#"
+package handlers
+
+type UserHandler struct {}
+
+func (h *UserHandler) CreateUser() {}
+"#;
+
+    let items = analyzer.find_symbols(
+        Path::new("internal/http/handlers/user_handler.go"),
+        source,
+        &FindSymbolQuery {
+            symbol: "CreateUser".to_string(),
+            kind: "method".to_string(),
+            match_mode: "exact".to_string(),
+            public_language_filter: Some("go".to_string()),
+            limit: 10,
+        },
+    );
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].symbol, "UserHandler.CreateUser");
+}
+
+#[test]
+fn traces_go_import_and_field_backed_callees_inside_service_method() {
+    let analyzer = GoAnalyzer;
+    let workspace = tempdir().unwrap();
+    let domain_dir = workspace.path().join("internal/domain");
+    let repository_dir = workspace.path().join("internal/repository");
+    let service_dir = workspace.path().join("internal/service");
+    std::fs::create_dir_all(&domain_dir).unwrap();
+    std::fs::create_dir_all(&repository_dir).unwrap();
+    std::fs::create_dir_all(&service_dir).unwrap();
+    std::fs::write(
+        workspace.path().join("go.mod"),
+        "module examples/goapp\n\ngo 1.23.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        domain_dir.join("user.go"),
+        "package domain\n\n type User struct{}\n\n func NewUser(id string, name string, email string) User { return User{} }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        repository_dir.join("user_repository.go"),
+        "package repository\n\n import \"examples/goapp/internal/domain\"\n\n type UserRepository interface { Save(user domain.User) domain.User }\n",
+    )
+    .unwrap();
+    let service_path = service_dir.join("user_service.go");
+    std::fs::write(
+        &service_path,
+        "package service\n\n import (\n   \"examples/goapp/internal/domain\"\n   \"examples/goapp/internal/repository\"\n )\n\n type UserService struct { repository repository.UserRepository }\n\n func (s *UserService) CreateUser(name string, email string) (domain.User, error) {\n   user := domain.NewUser(\"1\", name, email)\n   return s.repository.Save(user), nil\n }\n",
+    )
+    .unwrap();
+    let source = std::fs::read_to_string(&service_path).unwrap();
+
+    let callees = analyzer.find_callees(
+        &service_path,
+        &source,
+        &FindCalleesQuery {
+            source_path: service_path.clone(),
+            target_symbol: "UserService.CreateUser".to_string(),
+        },
+    );
+
+    let names = callees
+        .iter()
+        .map(|item| item.callee.as_str())
+        .collect::<Vec<_>>();
+    assert!(names.contains(&"NewUser"), "names were: {names:?}");
+    assert!(
+        names.contains(&"UserRepository.Save"),
+        "names were: {names:?}"
+    );
+}
+
+#[test]
 fn finds_same_file_go_function_callers() {
     let analyzer = GoAnalyzer;
     let source = r#"

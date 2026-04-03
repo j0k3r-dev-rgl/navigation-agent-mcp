@@ -14,7 +14,7 @@ struct TypeScriptFileContext {
 #[derive(Debug, Clone)]
 enum ResolvedImport {
     Local { path: String },
-    External { package: String },
+    External,
     Unknown,
 }
 
@@ -485,13 +485,7 @@ fn extract_import_declaration(
             ResolvedImport::Unknown
         }
     } else {
-        ResolvedImport::External {
-            package: source_path
-                .split('/')
-                .next()
-                .unwrap_or(&source_path)
-                .to_string(),
-        }
+        ResolvedImport::External
     };
 
     if let Some(clause) = import_clause {
@@ -621,13 +615,7 @@ fn extract_require_call(
                                         ResolvedImport::Unknown
                                     }
                                 } else {
-                                    ResolvedImport::External {
-                                        package: import_path
-                                            .split('/')
-                                            .next()
-                                            .unwrap_or(import_path)
-                                            .to_string(),
-                                    }
+                                    ResolvedImport::External
                                 };
 
                                 imports.insert(var_name.to_string(), import_kind);

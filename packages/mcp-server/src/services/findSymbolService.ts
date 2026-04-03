@@ -2,8 +2,6 @@ import {
   type FindSymbolData,
   type FindSymbolInput,
   normalizeFindSymbolInput,
-  type PublicFramework,
-  type PublicLanguage,
   type ValidationIssue,
 } from "../contracts/public/code.js";
 import {
@@ -12,10 +10,10 @@ import {
 } from "../contracts/public/common.js";
 import {
   nextRequestId,
-  type AnalyzerLanguage,
   type FindSymbolEngineResult,
 } from "../engine/protocol.js";
 import type { EngineClient } from "../engine/rustEngineClient.js";
+import { resolveAnalyzerLanguage, resolveEffectiveLanguage } from "./languageResolution.js";
 
 const TOOL_NAME = "code.find_symbol";
 
@@ -245,42 +243,6 @@ function buildEngineFailureResponse(
     {},
     false,
   );
-}
-
-function resolveEffectiveLanguage(
-  language: PublicLanguage | null | undefined,
-  framework: PublicFramework | null | undefined,
-): PublicLanguage | null {
-  if (language) {
-    return language;
-  }
-  if (framework === "react-router") {
-    return "typescript";
-  }
-  if (framework === "spring") {
-    return "java";
-  }
-  return null;
-}
-
-function resolveAnalyzerLanguage(
-  language: PublicLanguage | null | undefined,
-  framework: PublicFramework | null | undefined,
-): AnalyzerLanguage {
-  const effective = resolveEffectiveLanguage(language, framework);
-  if (effective === "java") {
-    return "java";
-  }
-  if (effective === "python") {
-    return "python";
-  }
-  if (effective === "rust") {
-    return "rust";
-  }
-  if (effective === "typescript" || effective === "javascript") {
-    return "typescript";
-  }
-  return "auto";
 }
 
 function buildSummary(symbol: string, count: number, truncated: boolean): string {

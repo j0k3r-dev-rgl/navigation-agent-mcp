@@ -207,6 +207,14 @@ pub(super) fn current_go_symbol(node: Node, source: &[u8]) -> Option<String> {
     }
 }
 
+pub(super) fn go_symbol_matches_target(candidate: &str, target: &str) -> bool {
+    candidate == target
+        || candidate
+            .rsplit_once('.')
+            .map(|(_, suffix)| suffix == target)
+            .unwrap_or(false)
+}
+
 pub(super) fn extract_go_function_context(node: Node, source: &[u8]) -> Option<GoFunctionContext> {
     let symbol = current_go_symbol(node, source)?;
     Some(GoFunctionContext {
@@ -277,9 +285,18 @@ fn resolve_selector_expression(
         .child_by_field_name("field")
         .or_else(|| node.named_child(1))?;
     let field_name = node_text(field, source)?;
+    let operand_text = node_text(operand, source)?;
 
-    if operand.kind() == "identifier" {
-        let operand_name = node_text(operand, source)?;
+    if let Some(import_dir) = file_ctx.imports.get(&operand_text) {
+        return Some(ResolvedGoCall {
+            symbol: field_name,
+            destination: import_dir.clone(),
+            receiver_type: None,
+        });
+    }
+
+    if matches!(operand.kind(), "identifier" | "package_identifier") {
+        let operand_name = operand_text.clone();
         if let Some(import_dir) = file_ctx.imports.get(&operand_name) {
             return Some(ResolvedGoCall {
                 symbol: field_name,
@@ -299,7 +316,6 @@ fn resolve_selector_expression(
         }
     }
 
-    let operand_text = node_text(operand, source)?;
     let parts: Vec<&str> = operand_text.split('.').collect();
     if parts.len() != 2 {
         return None;
@@ -396,6 +412,10 @@ fn collect_imports(
         let Some(child) = node.named_child(index) else {
             continue;
         };
+        if child.kind() == "import_spec_list" {
+            collect_imports(child, source, workspace_root, module_name, imports);
+            continue;
+        }
         if child.kind() != "import_spec" {
             continue;
         }

@@ -1,6 +1,4 @@
 import {
-  type PublicFramework,
-  type PublicLanguage,
   type TraceFlowData,
   type TraceFlowInput,
   normalizeTraceFlowInput,
@@ -12,10 +10,14 @@ import {
 } from "../contracts/public/common.js";
 import {
   nextRequestId,
-  type AnalyzerLanguage,
   type TraceFlowEngineResult,
 } from "../engine/protocol.js";
 import type { EngineClient } from "../engine/rustEngineClient.js";
+import {
+  inferLanguageFromPath,
+  resolveAnalyzerLanguage,
+  resolveEffectiveLanguage,
+} from "./languageResolution.js";
 
 const TOOL_NAME = "code.trace_flow";
 
@@ -263,58 +265,4 @@ function buildSummary(symbol: string, path: string, calleeCount: number): string
     return `Traced 1 callee for '${symbol}' from '${path}'.`;
   }
   return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
-}
-
-function resolveEffectiveLanguage(
-  language: PublicLanguage | null | undefined,
-  framework: PublicFramework | null | undefined,
-): PublicLanguage | null {
-  if (language) {
-    return language;
-  }
-  if (framework === "react-router") {
-    return "typescript";
-  }
-  if (framework === "spring") {
-    return "java";
-  }
-  return null;
-}
-
-function resolveAnalyzerLanguage(
-  language: PublicLanguage | null | undefined,
-  framework: PublicFramework | null | undefined,
-): AnalyzerLanguage {
-  const effective = resolveEffectiveLanguage(language, framework);
-
-  if (effective === "java") {
-    return "java";
-  }
-  if (effective === "python") {
-    return "python";
-  }
-  if (effective === "rust") {
-    return "rust";
-  }
-  return "typescript";
-}
-
-function inferLanguageFromPath(path: string): PublicLanguage | null {
-  const normalized = path.toLowerCase();
-  if (normalized.endsWith(".ts") || normalized.endsWith(".tsx")) {
-    return "typescript";
-  }
-  if (normalized.endsWith(".js") || normalized.endsWith(".jsx")) {
-    return "javascript";
-  }
-  if (normalized.endsWith(".java")) {
-    return "java";
-  }
-  if (normalized.endsWith(".py")) {
-    return "python";
-  }
-  if (normalized.endsWith(".rs")) {
-    return "rust";
-  }
-  return null;
 }

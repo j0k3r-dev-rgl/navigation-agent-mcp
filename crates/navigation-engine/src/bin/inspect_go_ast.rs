@@ -1,7 +1,16 @@
+use std::path::PathBuf;
+
 use tree_sitter::{Language, Parser};
 
 fn main() {
-    let source = r#"
+    let source = std::env::args()
+        .nth(1)
+        .map(PathBuf::from)
+        .map(std::fs::read_to_string)
+        .transpose()
+        .expect("failed to read Go source file")
+        .unwrap_or_else(|| {
+            r#"
 type UserRepository interface { Save() error }
 type Result = string
 import "example/app/internal/service"
@@ -12,12 +21,14 @@ func (h *UserHandler) CreateUser() {
     h.service.CreateUser()
     writeJSON()
 }
-"#;
+"#
+            .to_string()
+        });
 
     let mut parser = Parser::new();
     let language = Language::new(tree_sitter_go::LANGUAGE);
     parser.set_language(&language).unwrap();
-    let tree = parser.parse(source, None).unwrap();
+    let tree = parser.parse(&source, None).unwrap();
     print_node(tree.root_node(), source.as_bytes(), 0);
 }
 

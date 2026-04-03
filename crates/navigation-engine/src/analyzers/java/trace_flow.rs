@@ -7,7 +7,6 @@ use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQu
 
 #[derive(Clone)]
 pub(super) struct JavaFileContext {
-    package_name: String,
     project_prefix: String,
     pub(super) imports: HashMap<String, String>,
     pub(super) class_fields: HashMap<String, String>,
@@ -22,7 +21,6 @@ impl JavaFileContext {
             .join(".");
 
         Self {
-            package_name: package_name.to_string(),
             project_prefix,
             imports: HashMap::new(),
             class_fields: HashMap::new(),

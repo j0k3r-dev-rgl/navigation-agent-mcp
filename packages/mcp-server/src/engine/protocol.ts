@@ -16,7 +16,7 @@ export const ENGINE_CAPABILITIES = [
 ] as const;
 export type EngineCapability = (typeof ENGINE_CAPABILITIES)[number];
 
-export type AnalyzerLanguage = "auto" | "java" | "typescript" | "python" | "rust";
+export type AnalyzerLanguage = "auto" | "go" | "java" | "typescript" | "python" | "rust";
 
 export interface InspectTreeEnginePayload {
   path: string | null;

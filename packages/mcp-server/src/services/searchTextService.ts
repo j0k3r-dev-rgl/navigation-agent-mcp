@@ -1,6 +1,4 @@
 import {
-  type PublicFramework,
-  type PublicLanguage,
   type SearchTextData,
   type SearchTextInput,
   normalizeSearchTextInput,
@@ -15,6 +13,7 @@ import {
   type SearchTextEngineResult,
 } from "../engine/protocol.js";
 import type { EngineClient } from "../engine/rustEngineClient.js";
+import { resolveEffectiveLanguage } from "./languageResolution.js";
 
 const TOOL_NAME = "code.search_text";
 
@@ -295,20 +294,4 @@ function buildSummary(
     return `Found 1 text match in 1 file for '${query}'.`;
   }
   return `Found ${matchCount} text matches across ${fileCount} files for '${query}'.`;
-}
-
-function resolveEffectiveLanguage(
-  language: PublicLanguage | null | undefined,
-  framework: PublicFramework | null | undefined,
-): PublicLanguage | null {
-  if (language) {
-    return language;
-  }
-  if (framework === "react-router") {
-    return "typescript";
-  }
-  if (framework === "spring") {
-    return "java";
-  }
-  return null;
 }

@@ -26,19 +26,43 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	var request CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+	request, err := decodeCreateUserRequest(r)
+	if err != nil {
+		writeCreateUserDecodeError(w)
 		return
 	}
 
 	user, err := h.service.CreateUser(request.Name, request.Email)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeCreateUserValidationError(w, err)
 		return
 	}
 
+	writeCreatedUser(w, user)
+}
+
+func decodeCreateUserRequest(r *http.Request) (CreateUserRequest, error) {
+	var request CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		return CreateUserRequest{}, err
+	}
+	return request, nil
+}
+
+func writeCreateUserDecodeError(w http.ResponseWriter) {
+	writeErrorJSON(w, http.StatusBadRequest, "invalid body")
+}
+
+func writeCreateUserValidationError(w http.ResponseWriter, err error) {
+	writeErrorJSON(w, http.StatusBadRequest, err.Error())
+}
+
+func writeCreatedUser(w http.ResponseWriter, user any) {
 	writeJSON(w, http.StatusCreated, user)
+}
+
+func writeErrorJSON(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

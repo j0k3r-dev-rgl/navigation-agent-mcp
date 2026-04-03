@@ -14,14 +14,12 @@ pub(super) struct RustCalleeContext<'a> {
 
 #[derive(Clone)]
 struct RustFunctionContext {
-    owner_name: Option<String>,
     local_bindings: HashMap<String, RustBindingMeta>,
 }
 
 #[derive(Clone)]
 struct RustBindingMeta {
     owner_type: String,
-    source_path: Option<String>,
 }
 
 impl RustBindingMeta {
@@ -85,10 +83,7 @@ fn collect_rust_callees(
     let next_function = if is_target_function {
         let owner_name = enclosing_impl_owner(node, source);
         let local_bindings = collect_rust_local_bindings(node, source, owner_name.as_deref());
-        Some(RustFunctionContext {
-            owner_name,
-            local_bindings,
-        })
+        Some(RustFunctionContext { local_bindings })
     } else if current_function.is_some() {
         current_function.clone()
     } else {
@@ -325,13 +320,7 @@ fn extract_rust_binding(
         name.rsplit_once("::").map(|(owner, _)| owner.to_string())
     })?;
 
-    Some((
-        binding_name,
-        RustBindingMeta {
-            owner_type,
-            source_path: None,
-        },
-    ))
+    Some((binding_name, RustBindingMeta { owner_type }))
 }
 
 fn qualify_receiver_method(

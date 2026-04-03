@@ -281,6 +281,68 @@ fn traces_exported_destructured_symbols_to_their_module() {
 }
 
 #[test]
+fn traces_go_method_flow_from_simple_method_name_across_example_layers() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/http/handlers")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/service")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/domain")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("internal/repository")).unwrap();
+    std::fs::write(
+        workspace.path().join("go.mod"),
+        "module example/app\n\ngo 1.23.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/domain/user.go"),
+        "package domain\n\nfunc NewUser() User { return User{} }\n\ntype User struct{}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/repository/user_repository.go"),
+        "package repository\n\nimport \"example/app/internal/domain\"\n\ntype UserRepository interface { Save(domain.User) domain.User }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/service/user_service.go"),
+        "package service\n\nimport (\n  \"example/app/internal/domain\"\n  \"example/app/internal/repository\"\n)\n\ntype UserService struct { repository repository.UserRepository }\n\nfunc (s *UserService) CreateUser() domain.User {\n  user := domain.NewUser()\n  return s.repository.Save(user)\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("internal/http/handlers/user_handler.go"),
+        "package handlers\n\nimport \"example/app/internal/service\"\n\ntype UserHandler struct { service *service.UserService }\n\nfunc writeJSON() {}\n\nfunc (h *UserHandler) CreateUser() {\n  h.service.CreateUser()\n  writeJSON()\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "internal/http/handlers/user_handler.go".to_string(),
+            symbol: "CreateUser".to_string(),
+            analyzer_language: "go".to_string(),
+            public_language_filter: Some("go".to_string()),
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let service_create_user = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "UserService.CreateUser")
+        .expect("expected service method child");
+    assert_eq!(service_create_user.path, "internal/service/user_service.go");
+    assert!(
+        service_create_user
+            .callers
+            .iter()
+            .any(|c| c.symbol == "NewUser"),
+        "expected domain.NewUser nested callee"
+    );
+    assert!(root.callers.iter().any(|c| c.symbol == "writeJSON"));
+}
+
+#[test]
 fn traces_nested_call_expressions_at_any_depth() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
