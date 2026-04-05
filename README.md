@@ -94,12 +94,12 @@ This table MUST stay in the README because it is the fastest way to understand t
 
 | Capability | Java | TypeScript / JavaScript | Python | Rust | Go | All Files |
 |---|---|---|---|---|---|---|
-| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
-| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
-| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
-| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Publicly exposed, not re-validated in this pass | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
-| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
-| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ⚠️ Publicly exposed, not re-validated in this pass | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ✅ Verified on `examples/python` tree | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
+| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` symbols | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
+| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` source | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
+| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ✅ Verified on `examples/python` FastAPI-style routes | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ✅ Verified end-to-end on `examples/python` with FastAPI routes and service calls | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ⚠️ Publicly exposed, but not yet re-validated for complex cross-file Python scenarios | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
 
 Legend:
 
@@ -226,6 +226,25 @@ Verified example:
 - `app/routes/change-password.tsx#action`
 - found calls to `getUserIdAndTokenFromSession`, `changeMyPassword`, `getSession`, `commitSession`, `getRoleRoute`
 - reverse-traced `getRoleRoute <- action`
+
+### Python (`examples/python`)
+
+- `code.inspect_tree` works on Python module trees
+- `code.find_symbol` works on Python classes, functions, and methods
+- `code.search_text` works on Python source files
+- `code.list_endpoints` works against FastAPI-style route decorators (`@router.get`, `@app.post`, etc.)
+- `code.trace_flow` works end-to-end for cross-file Python scenarios, including:
+  - Function calls and method invocations with receiver detection
+  - Async functions and async calls
+  - Decorated functions (FastAPI routes, dataclasses, etc.)
+  - Multi-level call chains across modules
+- `code.trace_callers` is publicly exposed but not yet re-validated for complex cross-file Python scenarios
+
+Verified example:
+- `app/api/endpoints.py#get_product`
+- traced into `inventory_service.get_product_by_id(product_id)`
+- resolves to `app/services/inventory.py#InventoryService.get_product_by_id`
+- captures receiver type (`inventory_service`) and method name (`get_product_by_id`)
 
 ### Rust (this repository)
 
