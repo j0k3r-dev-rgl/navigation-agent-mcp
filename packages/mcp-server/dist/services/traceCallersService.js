@@ -1,6 +1,7 @@
 import { normalizeTraceCallersInput, } from "../contracts/public/code.js";
 import { createResponseMeta, } from "../contracts/public/common.js";
 import { nextRequestId, } from "../engine/protocol.js";
+import { inferLanguageFromPath, resolveAnalyzerLanguage, resolveEffectiveLanguage, } from "./languageResolution.js";
 const TOOL_NAME = "code.trace_callers";
 const DEFAULT_MAX_DEPTH = 3;
 const MAX_MAX_DEPTH = 8;
@@ -16,8 +17,8 @@ export function createTraceCallersService(options) {
                     payload: {
                         path: input.path,
                         symbol: input.symbol,
-                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
                         recursive: input.recursive,
                         maxDepth: input.recursive ? resolveMaxDepth(input.max_depth) : null,
                     },
@@ -41,7 +42,7 @@ export function createTraceCallersService(options) {
     };
 }
 function buildSuccessResponse(input, result) {
-    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
     const count = result.totalMatched;
     return {
         tool: TOOL_NAME,
@@ -209,48 +210,4 @@ function buildSummary(symbol, path, count, recursive) {
 }
 function resolveMaxDepth(maxDepth) {
     return Math.min(maxDepth ?? DEFAULT_MAX_DEPTH, MAX_MAX_DEPTH);
-}
-function resolveEffectiveLanguage(language, framework) {
-    if (language) {
-        return language;
-    }
-    if (framework === "react-router") {
-        return "typescript";
-    }
-    if (framework === "spring") {
-        return "java";
-    }
-    return null;
-}
-function resolveAnalyzerLanguage(language, framework) {
-    const effective = resolveEffectiveLanguage(language, framework);
-    if (effective === "java") {
-        return "java";
-    }
-    if (effective === "python") {
-        return "python";
-    }
-    if (effective === "rust") {
-        return "rust";
-    }
-    return "typescript";
-}
-function inferLanguageFromPath(path) {
-    const normalized = path.toLowerCase();
-    if (normalized.endsWith(".ts") || normalized.endsWith(".tsx")) {
-        return "typescript";
-    }
-    if (normalized.endsWith(".js") || normalized.endsWith(".jsx")) {
-        return "javascript";
-    }
-    if (normalized.endsWith(".java")) {
-        return "java";
-    }
-    if (normalized.endsWith(".py")) {
-        return "python";
-    }
-    if (normalized.endsWith(".rs")) {
-        return "rust";
-    }
-    return null;
 }

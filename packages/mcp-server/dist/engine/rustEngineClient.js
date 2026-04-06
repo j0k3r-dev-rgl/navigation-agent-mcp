@@ -105,6 +105,18 @@ function resolveEngineCommand(override) {
         }
         throw new Error("NAVIGATION_MCP_RUST_ENGINE_CMD must be a JSON array of strings.");
     }
+    const localCargoManifest = join(process.cwd(), "crates", "navigation-engine", "Cargo.toml");
+    if (existsSync(localCargoManifest)) {
+        return [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            "crates/navigation-engine/Cargo.toml",
+            "--bin",
+            "navigation-engine",
+        ];
+    }
     // Try to find the pre-compiled binary bundled in the platform-specific optional package.
     const binaryName = process.platform === "win32" ? "navigation-engine.exe" : "navigation-engine";
     const platformPackages = {
@@ -134,5 +146,7 @@ function resolveEngineCommand(override) {
         "--quiet",
         "--manifest-path",
         "crates/navigation-engine/Cargo.toml",
+        "--bin",
+        "navigation-engine",
     ];
 }

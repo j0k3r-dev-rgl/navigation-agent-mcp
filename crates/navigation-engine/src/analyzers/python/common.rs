@@ -4,8 +4,8 @@ use tree_sitter::Node;
 
 use super::super::language_analyzer::LanguageAnalyzer;
 use super::super::types::{
-    AnalyzerLanguage, CalleeDefinition, EndpointDefinition, FindCalleesQuery, FindEndpointsQuery,
-    FindSymbolQuery, SymbolDefinition,
+    AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
+    FindCallersQuery, FindEndpointsQuery, FindSymbolQuery, SymbolDefinition,
 };
 
 pub struct PythonAnalyzer;
@@ -44,6 +44,16 @@ impl LanguageAnalyzer for PythonAnalyzer {
         query: &FindCalleesQuery,
     ) -> Vec<CalleeDefinition> {
         super::trace_flow::find_callees(path, source, query)
+    }
+
+    fn find_callers(
+        &self,
+        workspace_root: &Path,
+        path: &Path,
+        source: &str,
+        query: &FindCallersQuery,
+    ) -> Vec<CallerDefinition> {
+        super::trace_callers::find_callers(workspace_root, path, source, query)
     }
 
     fn supports_framework(&self, framework: Option<&str>) -> bool {

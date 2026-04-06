@@ -1,6 +1,7 @@
 import { normalizeSearchTextInput, } from "../contracts/public/code.js";
 import { createResponseMeta, } from "../contracts/public/common.js";
 import { nextRequestId, } from "../engine/protocol.js";
+import { resolveEffectiveLanguage } from "./languageResolution.js";
 const TOOL_NAME = "code.search_text";
 export function createSearchTextService(options) {
     return {
@@ -14,7 +15,7 @@ export function createSearchTextService(options) {
                     payload: {
                         query: input.query,
                         path: input.path ?? null,
-                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
                         include: input.include ?? null,
                         regex: input.regex,
                         context: input.context,
@@ -42,7 +43,7 @@ export function createSearchTextService(options) {
 function buildSuccessResponse(input, result) {
     const returnedFileCount = result.items.length;
     const returnedMatchCount = result.items.reduce((total, item) => total + item.matchCount, 0);
-    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
     return {
         tool: TOOL_NAME,
         status: result.truncated ? "partial" : "ok",
@@ -52,17 +53,12 @@ function buildSuccessResponse(input, result) {
             matchCount: result.truncated ? returnedMatchCount : result.totalMatchCount,
             totalFileCount: result.totalFileCount,
             totalMatchCount: result.totalMatchCount,
+            topFiles: buildTopFiles(result.items),
             items: result.items.map((item) => ({
                 path: item.path,
                 language: item.language,
                 matchCount: item.matchCount,
-                matches: item.matches.map((match) => ({
-                    line: match.line,
-                    text: match.text,
-                    submatches: match.submatches.map((submatch) => ({ ...submatch })),
-                    before: match.before.map((contextLine) => ({ ...contextLine })),
-                    after: match.after.map((contextLine) => ({ ...contextLine })),
-                })),
+                matches: compactMatches(item.matches),
             })),
         },
         errors: result.truncated
@@ -109,6 +105,7 @@ function buildValidationErrorResponse(issues) {
             matchCount: 0,
             totalFileCount: 0,
             totalMatchCount: 0,
+            topFiles: [],
             items: [],
         },
         errors: [
@@ -204,8 +201,38 @@ function emptyData() {
         matchCount: 0,
         totalFileCount: 0,
         totalMatchCount: 0,
+        topFiles: [],
         items: [],
     };
+}
+function compactMatches(matches) {
+    const byLine = new Map();
+    for (const match of matches) {
+        const current = byLine.get(match.line) ?? { line: match.line, spans: [] };
+        for (const submatch of match.submatches) {
+            current.spans.push({
+                colInit: submatch.start + 1,
+                colEnd: submatch.end,
+            });
+        }
+        byLine.set(match.line, current);
+    }
+    return Array.from(byLine.values())
+        .map((entry) => ({
+        line: entry.line,
+        spans: entry.spans.sort((a, b) => a.colInit - b.colInit || a.colEnd - b.colEnd),
+    }))
+        .sort((a, b) => a.line - b.line);
+}
+function buildTopFiles(items) {
+    return [...items]
+        .sort((left, right) => right.matchCount - left.matchCount || left.path.localeCompare(right.path))
+        .slice(0, 5)
+        .map((item) => ({
+        path: item.path,
+        language: item.language,
+        matchCount: item.matchCount,
+    }));
 }
 function buildSummary(query, fileCount, matchCount, truncated) {
     if (matchCount === 0) {
@@ -218,16 +245,4 @@ function buildSummary(query, fileCount, matchCount, truncated) {
         return `Found 1 text match in 1 file for '${query}'.`;
     }
     return `Found ${matchCount} text matches across ${fileCount} files for '${query}'.`;
-}
-function resolveEffectiveLanguage(language, framework) {
-    if (language) {
-        return language;
-    }
-    if (framework === "react-router") {
-        return "typescript";
-    }
-    if (framework === "spring") {
-        return "java";
-    }
-    return null;
 }

@@ -1,6 +1,6 @@
-import { type InspectTreeData, type InspectTreeInput } from "../contracts/public/code.ts";
-import { type ResponseEnvelope } from "../contracts/public/common.ts";
-import type { EngineClient } from "../engine/rustEngineClient.ts";
+import { type InspectTreeData, type InspectTreeInput } from "../contracts/public/code.js";
+import { type ResponseEnvelope } from "../contracts/public/common.js";
+import type { EngineClient } from "../engine/rustEngineClient.js";
 export interface InspectTreeService {
     execute(input: InspectTreeInput): Promise<ResponseEnvelope<InspectTreeData>>;
     validateAndExecute(payload: Record<string, unknown>): Promise<ResponseEnvelope<InspectTreeData>>;

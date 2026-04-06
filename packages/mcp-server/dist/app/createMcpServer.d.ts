@@ -1,5 +1,5 @@
-import { type EngineClient } from "../engine/rustEngineClient.ts";
-import { type RegisteredCodeTool } from "../tools/registerCodeTools.ts";
+import { type EngineClient } from "../engine/rustEngineClient.js";
+import { type RegisteredCodeTool } from "../tools/registerCodeTools.js";
 export interface CreateMcpServerOptions {
     workspaceRoot: string;
     engineClient?: EngineClient;

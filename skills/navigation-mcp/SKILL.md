@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: opencode
 metadata:
   author: j0k3r-dev-rgl
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 ## When to Use
@@ -28,7 +28,7 @@ metadata:
 5. Never use `bash grep` or `bash find` for code search while navigation tools are available.
 6. The stable public MCP contract is `code.*`, not `workspace.*`.
 7. Current public languages are `typescript`, `javascript`, `go`, `java`, `python`, and `rust`.
-8. Go is now usable through the public contract for `find_symbol`, `search_text`, `trace_flow`, and `trace_callers`, but `list_endpoints` is still limited on the current example app.
+8. Go and Python are now usable through the public contract for `find_symbol`, `search_text`, `trace_flow`, and `trace_callers`. `list_endpoints` also works for Python FastAPI/Flask-style decorators.
 9. `search_text` is compact by design: treat it as grouped match coordinates (`path`, `language`, `matchCount`, `line`, `spans`) plus `topFiles`, then read only the files you actually need.
 
 ## Tool Decision Guide
@@ -257,14 +257,14 @@ Goal: find every file that imports or uses a specific decorator or annotation
 
 Verified during the latest project sync:
 
-| Capability | Java | TypeScript / JavaScript | Rust | Go |
-| --- | --- | --- | --- | --- |
-| `inspect_tree` | ✅ | ✅ | ✅ | ✅ |
-| `find_symbol` | ✅ | ✅ | ✅ | ✅ |
-| `search_text` | ✅ | ✅ | ✅ | ✅ |
-| `list_endpoints` | ✅ | ✅ | ⚠️ target-dependent | ⚠️ limited in current example |
-| `trace_flow` | ✅ | ✅ | ✅ | ✅ |
-| `trace_callers` | ✅ | ✅ | ✅ with qualified symbols | ✅ |
+| Capability | Java | TypeScript / JavaScript | Python | Rust | Go |
+| --- | --- | --- | --- | --- | --- |
+| `inspect_tree` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `find_symbol` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `search_text` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `list_endpoints` | ✅ | ✅ | ✅ | ⚠️ target-dependent | ⚠️ limited in current example |
+| `trace_flow` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `trace_callers` | ✅ | ✅ | ✅ | ✅ with qualified symbols | ✅ |
 
 Use this table as guidance for expectations, not as a substitute for real validation.
 

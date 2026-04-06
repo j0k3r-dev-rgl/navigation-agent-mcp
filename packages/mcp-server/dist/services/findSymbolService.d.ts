@@ -1,6 +1,6 @@
-import { type FindSymbolData, type FindSymbolInput } from "../contracts/public/code.ts";
-import { type ResponseEnvelope } from "../contracts/public/common.ts";
-import type { EngineClient } from "../engine/rustEngineClient.ts";
+import { type FindSymbolData, type FindSymbolInput } from "../contracts/public/code.js";
+import { type ResponseEnvelope } from "../contracts/public/common.js";
+import type { EngineClient } from "../engine/rustEngineClient.js";
 export interface FindSymbolService {
     execute(input: FindSymbolInput): Promise<ResponseEnvelope<FindSymbolData>>;
     validateAndExecute(payload: Record<string, unknown>): Promise<ResponseEnvelope<FindSymbolData>>;

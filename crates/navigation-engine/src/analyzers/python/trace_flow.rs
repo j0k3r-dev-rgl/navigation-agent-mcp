@@ -20,6 +20,7 @@ pub(super) fn find_callees(
     query: &FindCalleesQuery,
 ) -> Vec<CalleeDefinition> {
     let mut parser = Parser::new();
+
     if parser
         .set_language(&tree_sitter_python::LANGUAGE.into())
         .is_err()

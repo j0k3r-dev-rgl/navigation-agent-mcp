@@ -1,6 +1,7 @@
 import { normalizeTraceFlowInput, } from "../contracts/public/code.js";
 import { createResponseMeta, } from "../contracts/public/common.js";
 import { nextRequestId, } from "../engine/protocol.js";
+import { inferLanguageFromPath, resolveAnalyzerLanguage, resolveEffectiveLanguage, } from "./languageResolution.js";
 const TOOL_NAME = "code.trace_flow";
 export function createTraceFlowService(options) {
     return {
@@ -14,8 +15,8 @@ export function createTraceFlowService(options) {
                     payload: {
                         path: input.path,
                         symbol: input.symbol,
-                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
                     },
                 });
             }
@@ -38,9 +39,8 @@ export function createTraceFlowService(options) {
 }
 function buildSuccessResponse(input, result) {
     const entrypointPath = result.resolvedPath ?? input.path;
-    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
-    const fileCount = result.items.length;
-    const calleeCount = result.callees?.length ?? 0;
+    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
+    const calleeCount = countRootChildren(result.root);
     return {
         tool: TOOL_NAME,
         status: result.truncated ? "partial" : "ok",
@@ -51,23 +51,7 @@ function buildSuccessResponse(input, result) {
                 symbol: input.symbol,
                 language: inferLanguageFromPath(entrypointPath),
             },
-            fileCount,
-            items: result.items.map((item) => ({
-                path: item.path,
-                language: item.language,
-            })),
-            callees: (result.callees ?? []).map((callee) => ({
-                path: callee.path,
-                line: callee.line,
-                endLine: callee.endLine,
-                column: callee.column,
-                callee: callee.callee,
-                calleeSymbol: callee.calleeSymbol,
-                relation: callee.relation,
-                language: callee.language,
-                snippet: callee.snippet,
-                depth: callee.depth,
-            })),
+            root: mapTraceFlowNode(result.root),
         },
         errors: [],
         meta: createResponseMeta({
@@ -75,8 +59,8 @@ function buildSuccessResponse(input, result) {
             resolvedPath: result.resolvedPath,
             truncated: result.truncated,
             counts: {
-                returnedCount: fileCount,
-                totalMatched: result.totalMatched,
+                returnedCount: calleeCount,
+                totalMatched: calleeCount,
             },
             detection: {
                 effectiveLanguage,
@@ -185,9 +169,7 @@ function emptyData(path = "", symbol = "") {
             symbol,
             language: inferLanguageFromPath(path),
         },
-        fileCount: 0,
-        items: [],
-        callees: [],
+        root: null,
     };
 }
 function buildSummary(symbol, path, calleeCount) {
@@ -199,47 +181,22 @@ function buildSummary(symbol, path, calleeCount) {
     }
     return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
 }
-function resolveEffectiveLanguage(language, framework) {
-    if (language) {
-        return language;
-    }
-    if (framework === "react-router") {
-        return "typescript";
-    }
-    if (framework === "spring") {
-        return "java";
-    }
-    return null;
+function countRootChildren(root) {
+    return root?.callers.length ?? 0;
 }
-function resolveAnalyzerLanguage(language, framework) {
-    const effective = resolveEffectiveLanguage(language, framework);
-    if (effective === "java") {
-        return "java";
+function mapTraceFlowNode(node) {
+    if (!node) {
+        return null;
     }
-    if (effective === "python") {
-        return "python";
-    }
-    if (effective === "rust") {
-        return "rust";
-    }
-    return "typescript";
-}
-function inferLanguageFromPath(path) {
-    const normalized = path.toLowerCase();
-    if (normalized.endsWith(".ts") || normalized.endsWith(".tsx")) {
-        return "typescript";
-    }
-    if (normalized.endsWith(".js") || normalized.endsWith(".jsx")) {
-        return "javascript";
-    }
-    if (normalized.endsWith(".java")) {
-        return "java";
-    }
-    if (normalized.endsWith(".py")) {
-        return "python";
-    }
-    if (normalized.endsWith(".rs")) {
-        return "rust";
-    }
-    return null;
+    return {
+        symbol: node.symbol,
+        path: node.path,
+        kind: node.kind,
+        rangeLine: {
+            init: node.rangeLine.init,
+            end: node.rangeLine.end,
+        },
+        via: node.via ?? null,
+        callers: node.callers.map((child) => mapTraceFlowNode(child)).filter(Boolean),
+    };
 }

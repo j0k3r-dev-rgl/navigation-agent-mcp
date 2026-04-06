@@ -98,8 +98,8 @@ This table MUST stay in the README because it is the fastest way to understand t
 | `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` symbols | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
 | `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` source | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
 | `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ✅ Verified on `examples/python` FastAPI-style routes | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
-| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ✅ Verified end-to-end on `examples/python` with FastAPI routes and service calls | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
-| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ⚠️ Publicly exposed, but not yet re-validated for complex cross-file Python scenarios | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ✅ Verified end-to-end on `examples/python` deep recursive trees | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ✅ Verified end-to-end on `examples/python` recursive impact analysis | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
 
 Legend:
 
@@ -233,18 +233,18 @@ Verified example:
 - `code.find_symbol` works on Python classes, functions, and methods
 - `code.search_text` works on Python source files
 - `code.list_endpoints` works against FastAPI-style route decorators (`@router.get`, `@app.post`, etc.)
-- `code.trace_flow` works end-to-end for cross-file Python scenarios, including:
-  - Function calls and method invocations with receiver detection
-  - Async functions and async calls
-  - Decorated functions (FastAPI routes, dataclasses, etc.)
-  - Multi-level call chains across modules
-- `code.trace_callers` is publicly exposed but not yet re-validated for complex cross-file Python scenarios
+- `code.trace_flow` works end-to-end for multi-module Python scenarios, capturing deep recursive trees including branching calls, instance methods (`self`), and cross-file resolution.
+- `code.trace_callers` works end-to-end for impact analysis, supporting recursive reverse-tracing across the entire workspace.
 
-Verified example:
-- `app/api/endpoints.py#get_product`
-- traced into `inventory_service.get_product_by_id(product_id)`
-- resolves to `app/services/inventory.py#InventoryService.get_product_by_id`
-- captures receiver type (`inventory_service`) and method name (`get_product_by_id`)
+Verified example (Forward Trace):
+- `app/api/endpoints.py#create_order`
+- traced into `order_service.process_order(...)` -> `_handle_payment(...)` -> `payment_service.authorize_payment(...)`
+- deep tree captures cross-file calls to `AuditService`, `InventoryService`, `ProductRepository`, etc.
+
+Verified example (Backward Trace):
+- `app/services/audit.py#log_action`
+- reverse-traced to callers in `UserService`, `OrderService`
+- recursively identifies entrypoints in `app/api/endpoints.py` (`get_user`, `create_order`)
 
 ### Rust (this repository)
 

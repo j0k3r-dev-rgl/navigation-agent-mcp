@@ -1,4 +1,4 @@
-import type { EngineRequest, EngineResponse } from "./protocol.ts";
+import type { EngineRequest, EngineResponse } from "./protocol.js";
 export interface EngineClient {
     request<TResult = unknown>(request: EngineRequest): Promise<EngineResponse<TResult>>;
     close(): Promise<void>;

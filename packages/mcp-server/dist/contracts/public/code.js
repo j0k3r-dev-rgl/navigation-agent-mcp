@@ -1,4 +1,4 @@
-export const PUBLIC_LANGUAGES = ["typescript", "javascript", "java", "python", "rust"];
+export const PUBLIC_LANGUAGES = ["typescript", "javascript", "go", "java", "python", "rust"];
 export const PUBLIC_FRAMEWORKS = ["react-router", "spring"];
 export const PUBLIC_ENDPOINT_KINDS = ["any", "graphql", "rest", "route"];
 export const PUBLIC_SYMBOL_KINDS = [

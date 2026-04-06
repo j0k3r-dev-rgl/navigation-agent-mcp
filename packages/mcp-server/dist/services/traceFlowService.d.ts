@@ -1,6 +1,6 @@
-import { type TraceFlowData, type TraceFlowInput } from "../contracts/public/code.ts";
-import { type ResponseEnvelope } from "../contracts/public/common.ts";
-import type { EngineClient } from "../engine/rustEngineClient.ts";
+import { type TraceFlowData, type TraceFlowInput } from "../contracts/public/code.js";
+import { type ResponseEnvelope } from "../contracts/public/common.js";
+import type { EngineClient } from "../engine/rustEngineClient.js";
 export interface TraceFlowService {
     execute(input: TraceFlowInput): Promise<ResponseEnvelope<TraceFlowData>>;
     validateAndExecute(payload: Record<string, unknown>): Promise<ResponseEnvelope<TraceFlowData>>;

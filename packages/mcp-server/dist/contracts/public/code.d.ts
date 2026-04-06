@@ -1,4 +1,4 @@
-export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "java", "python", "rust"];
+export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
 export type PublicLanguage = (typeof PUBLIC_LANGUAGES)[number];
 export declare const PUBLIC_FRAMEWORKS: readonly ["react-router", "spring"];
 export type PublicFramework = (typeof PUBLIC_FRAMEWORKS)[number];
@@ -96,21 +96,13 @@ export interface SearchTextInput {
     context: number;
     limit: number;
 }
-export interface SearchTextContextLine {
-    line: number;
-    text: string;
-}
-export interface SearchTextSubmatch {
-    start: number;
-    end: number;
-    text: string;
+export interface SearchTextSpan {
+    colInit: number;
+    colEnd: number;
 }
 export interface SearchTextMatch {
     line: number;
-    text: string;
-    submatches: SearchTextSubmatch[];
-    before: SearchTextContextLine[];
-    after: SearchTextContextLine[];
+    spans: SearchTextSpan[];
 }
 export interface SearchTextFileMatch {
     path: string;
@@ -118,11 +110,17 @@ export interface SearchTextFileMatch {
     matchCount: number;
     matches: SearchTextMatch[];
 }
+export interface SearchTextTopFile {
+    path: string;
+    language: PublicLanguage | null;
+    matchCount: number;
+}
 export interface SearchTextData {
     fileCount: number;
     matchCount: number;
     totalFileCount: number;
     totalMatchCount: number;
+    topFiles: SearchTextTopFile[];
     items: SearchTextFileMatch[];
 }
 export interface TraceFlowInput {
@@ -136,27 +134,27 @@ export interface TraceFlowEntrypoint {
     symbol: string;
     language: PublicLanguage | null;
 }
-export interface TraceFlowFile {
-    path: string;
-    language: PublicLanguage | null;
+export interface TraceFlowLineRange {
+    init: number;
+    end: number;
 }
-export interface TraceFlowCallee {
-    path: string;
+export interface TraceFlowVia {
     line: number;
-    endLine: number;
     column: number | null;
-    callee: string;
-    calleeSymbol: string | null;
-    relation: string;
-    language: PublicLanguage | null;
     snippet: string | null;
-    depth: number;
+    receiverType: string | null;
+}
+export interface TraceFlowNode {
+    symbol: string;
+    path: string;
+    kind: string;
+    rangeLine: TraceFlowLineRange;
+    via: TraceFlowVia[] | null;
+    callers: TraceFlowNode[];
 }
 export interface TraceFlowData {
     entrypoint: TraceFlowEntrypoint;
-    fileCount: number;
-    items: TraceFlowFile[];
-    callees: TraceFlowCallee[];
+    root: TraceFlowNode | null;
 }
 export interface TraceCallersInput {
     path: string;
@@ -177,8 +175,22 @@ export interface TraceCallerRecord {
     column: number | null;
     caller: string;
     callerSymbol: string | null;
+    callerRange: TraceCallersCallerRange;
+    callSite: TraceCallersCallSite;
+    calls: TraceCallersCallsTarget;
     relation: string;
     language: PublicLanguage | null;
+    snippet: string | null;
+    receiverType: string | null;
+}
+export interface TraceCallersCallerRange {
+    startLine: number;
+    endLine: number;
+}
+export interface TraceCallersCallSite {
+    line: number;
+    column: number | null;
+    relation: string;
     snippet: string | null;
     receiverType: string | null;
 }
@@ -228,6 +240,9 @@ export interface TraceCallersClassificationRecord {
     path: string;
     symbol: string;
     caller: string;
+    callerSymbol: string | null;
+    callerRange: TraceCallersCallerRange;
+    callSite: TraceCallersCallSite;
     depth: number;
     line: number;
     column: number | null;
@@ -393,7 +408,7 @@ export declare const listEndpointsInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -467,7 +482,7 @@ export declare const findSymbolInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -547,7 +562,7 @@ export declare const searchTextInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -599,7 +614,7 @@ export declare const traceFlowInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -665,7 +680,7 @@ export declare const traceCallersInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -783,7 +798,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -857,7 +872,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -937,7 +952,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -989,7 +1004,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -1055,7 +1070,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";

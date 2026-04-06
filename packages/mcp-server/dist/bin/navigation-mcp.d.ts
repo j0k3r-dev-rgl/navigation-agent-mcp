@@ -1,2 +1,2 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env -S npx tsx
 export {};

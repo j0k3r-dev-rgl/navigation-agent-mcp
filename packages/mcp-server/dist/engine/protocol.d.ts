@@ -1,7 +1,7 @@
-import type { MatchMode, PublicFramework, PublicLanguage, PublicEndpointKind, PublicSymbolKind } from "../contracts/public/code.ts";
+import type { MatchMode, PublicFramework, PublicLanguage, PublicEndpointKind, PublicSymbolKind } from "../contracts/public/code.js";
 export declare const ENGINE_CAPABILITIES: readonly ["workspace.inspect_tree", "workspace.find_symbol", "workspace.list_endpoints", "workspace.search_text", "workspace.trace_flow", "workspace.trace_callers"];
 export type EngineCapability = (typeof ENGINE_CAPABILITIES)[number];
-export type AnalyzerLanguage = "auto" | "java" | "typescript" | "python" | "rust";
+export type AnalyzerLanguage = "auto" | "go" | "java" | "typescript" | "python" | "rust";
 export interface InspectTreeEnginePayload {
     path: string | null;
     maxDepth: number;
@@ -139,28 +139,28 @@ export interface TraceFlowEnginePayload {
     analyzerLanguage: AnalyzerLanguage;
     publicLanguageFilter: PublicLanguage | null;
 }
-export interface TraceFlowEngineItem {
-    path: string;
-    language: PublicLanguage | null;
+export interface TraceFlowEngineLineRange {
+    init: number;
+    end: number;
 }
-export interface TraceFlowEngineCallee {
-    path: string;
+export interface TraceFlowEngineVia {
     line: number;
-    endLine: number;
     column: number | null;
-    callee: string;
-    calleeSymbol: string | null;
-    relation: string;
-    language: PublicLanguage | null;
     snippet: string | null;
-    depth: number;
+    receiverType: string | null;
+}
+export interface TraceFlowEngineNode {
+    symbol: string;
+    path: string;
+    kind: string;
+    rangeLine: TraceFlowEngineLineRange;
+    via?: TraceFlowEngineVia[] | null;
+    callers: TraceFlowEngineNode[];
 }
 export interface TraceFlowEngineResult {
     resolvedPath: string | null;
-    items: TraceFlowEngineItem[];
-    callees: TraceFlowEngineCallee[];
-    totalMatched: number;
     truncated: boolean;
+    root: TraceFlowEngineNode | null;
 }
 export interface TraceCallersEnginePayload {
     path: string;
@@ -180,8 +180,22 @@ export interface TraceCallersEngineItem {
     column: number | null;
     caller: string;
     callerSymbol: string | null;
+    callerRange: TraceCallersEngineCallerRange;
+    callSite: TraceCallersEngineCallSite;
+    calls: TraceCallersEngineTarget;
     relation: string;
     language: PublicLanguage | null;
+    snippet: string | null;
+    receiverType: string | null;
+}
+export interface TraceCallersEngineCallerRange {
+    startLine: number;
+    endLine: number;
+}
+export interface TraceCallersEngineCallSite {
+    line: number;
+    column: number | null;
+    relation: string;
     snippet: string | null;
     receiverType: string | null;
 }
@@ -227,6 +241,9 @@ export interface TraceCallersEngineClassificationRecord {
     path: string;
     symbol: string;
     caller: string;
+    callerSymbol: string | null;
+    callerRange: TraceCallersEngineCallerRange;
+    callSite: TraceCallersEngineCallSite;
     depth: number;
     line: number;
     column: number | null;

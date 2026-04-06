@@ -1,5 +1,5 @@
-import { type CodeToolName } from "../contracts/public/code.ts";
-import type { ResponseEnvelope } from "../contracts/public/common.ts";
+import { type CodeToolName } from "../contracts/public/code.js";
+import type { ResponseEnvelope } from "../contracts/public/common.js";
 import * as z from "zod/v4";
 export interface RegisteredCodeTool {
     name: CodeToolName;

@@ -472,6 +472,7 @@ pub fn trace_flow(
     payload: TraceFlowRequestPayload,
 ) -> Result<TraceFlowResult, EngineError> {
     let workspace_root = canonicalize_workspace_root(workspace_root)?;
+
     let scope = resolve_scope(&workspace_root, Some(payload.path.as_str()))?;
 
     if !scope.absolute_path.is_file() {
@@ -710,7 +711,8 @@ fn build_unresolved_leaf(
     callee: &crate::analyzers::types::CalleeDefinition,
     analyzer_language: AnalyzerLanguage,
 ) -> Option<TraceFlowNode> {
-    if analyzer_language == AnalyzerLanguage::Java {
+    if analyzer_language == AnalyzerLanguage::Java || analyzer_language == AnalyzerLanguage::Python
+    {
         return None;
     }
 
@@ -786,13 +788,15 @@ fn resolve_callee_targets(
         }
     }
 
-    let same_file_target = resolve_symbol_metadata(
+    // 1. Try resolving in the same file
+    if resolve_symbol_metadata(
         workspace_root,
         current_file,
         &callee.callee,
         analyzer_language,
-    )?;
-    if same_file_target.is_some() {
+    )?
+    .is_some()
+    {
         direct_targets.push(ResolvedTraceTarget {
             path: current_file.to_path_buf(),
             symbol: callee.callee.clone(),
@@ -804,6 +808,7 @@ fn resolve_callee_targets(
         });
     }
 
+    // 2. Resolve candidate path (from imports/context)
     let candidate_path = if std::path::Path::new(&callee.path).is_absolute() {
         std::path::PathBuf::from(&callee.path)
     } else {
@@ -813,6 +818,7 @@ fn resolve_callee_targets(
             .unwrap_or_else(|| workspace_root.join(&callee.path))
     };
 
+    // 3. Try resolving in scoped directory or global workspace
     if candidate_path.is_dir() {
         if let Some(scoped_match) = resolve_symbol_in_scope(
             workspace_root,
@@ -825,40 +831,29 @@ fn resolve_callee_targets(
             resolve_symbol_globally(workspace_root, &callee.callee, analyzer_language)?
         {
             direct_targets.push(global_match);
-        } else {
-            direct_targets.push(ResolvedTraceTarget {
-                path: candidate_path,
-                symbol: callee.callee.clone(),
-            });
         }
-    } else if resolve_symbol_metadata(
-        workspace_root,
-        &candidate_path,
-        &callee.callee,
-        analyzer_language,
-    )?
-    .is_some()
+    } else if candidate_path.exists()
+        && resolve_symbol_metadata(
+            workspace_root,
+            &candidate_path,
+            &callee.callee,
+            analyzer_language,
+        )?
+        .is_some()
     {
         direct_targets.push(ResolvedTraceTarget {
             path: candidate_path,
             symbol: callee.callee.clone(),
         });
-    } else if analyzer_language == AnalyzerLanguage::Go {
+    } else if analyzer_language == AnalyzerLanguage::Go
+        || analyzer_language == AnalyzerLanguage::Python
+    {
+        // For dynamic/loosely typed languages, try global resolution as a fallback
         if let Some(global_match) =
             resolve_symbol_globally(workspace_root, &callee.callee, analyzer_language)?
         {
             direct_targets.push(global_match);
-        } else if candidate_path.exists() {
-            direct_targets.push(ResolvedTraceTarget {
-                path: candidate_path,
-                symbol: callee.callee.clone(),
-            });
         }
-    } else if candidate_path.exists() {
-        direct_targets.push(ResolvedTraceTarget {
-            path: candidate_path,
-            symbol: callee.callee.clone(),
-        });
     }
 
     Ok(ResolvedTraceCall {

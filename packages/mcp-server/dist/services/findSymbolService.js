@@ -1,6 +1,7 @@
 import { normalizeFindSymbolInput, } from "../contracts/public/code.js";
 import { createResponseMeta, } from "../contracts/public/common.js";
 import { nextRequestId, } from "../engine/protocol.js";
+import { resolveAnalyzerLanguage, resolveEffectiveLanguage } from "./languageResolution.js";
 const TOOL_NAME = "code.find_symbol";
 export function createFindSymbolService(options) {
     return {
@@ -14,8 +15,8 @@ export function createFindSymbolService(options) {
                     payload: {
                         symbol: input.symbol,
                         path: input.path ?? null,
-                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework),
-                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework),
+                        analyzerLanguage: resolveAnalyzerLanguage(input.language, input.framework, input.path),
+                        publicLanguageFilter: resolveEffectiveLanguage(input.language, input.framework, input.path),
                         kind: input.kind,
                         matchMode: input.match,
                         limit: input.limit,
@@ -40,7 +41,7 @@ export function createFindSymbolService(options) {
     };
 }
 function buildSuccessResponse(input, result) {
-    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework);
+    const effectiveLanguage = resolveEffectiveLanguage(input.language, input.framework, input.path);
     const count = result.totalMatched;
     const returnedCount = result.items.length;
     return {
@@ -182,34 +183,6 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
 }
 function buildEngineFailureResponse(input, error) {
     return buildMappedErrorResponse(input, "BACKEND_EXECUTION_FAILED", error instanceof Error ? error.message : String(error), {}, false);
-}
-function resolveEffectiveLanguage(language, framework) {
-    if (language) {
-        return language;
-    }
-    if (framework === "react-router") {
-        return "typescript";
-    }
-    if (framework === "spring") {
-        return "java";
-    }
-    return null;
-}
-function resolveAnalyzerLanguage(language, framework) {
-    const effective = resolveEffectiveLanguage(language, framework);
-    if (effective === "java") {
-        return "java";
-    }
-    if (effective === "python") {
-        return "python";
-    }
-    if (effective === "rust") {
-        return "rust";
-    }
-    if (effective === "typescript" || effective === "javascript") {
-        return "typescript";
-    }
-    return "auto";
 }
 function buildSummary(symbol, count, truncated) {
     if (count === 0) {
