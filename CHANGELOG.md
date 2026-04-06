@@ -2,13 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.7.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.6.0...v0.7.0) (2026-04-06)
-
-
-### Features
-
-* add complete PHP language support ([4886903](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/48869035501cce08c3081259cf8f85bbdad8534e))
-
 ## [0.6.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.5.0...v0.6.0) (2026-04-06)
 
 
