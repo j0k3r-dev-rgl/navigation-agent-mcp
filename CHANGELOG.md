@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.5.0...v0.6.0) (2026-04-06)
+
+
+### Features
+
+* implement full python navigation support (trace_flow & trace_callers) ([0105f5a](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/0105f5a4cdf95938e564096220f1d570472079ad))
+
 ## [0.5.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.4.0...v0.5.0) (2026-04-03)
 
 
