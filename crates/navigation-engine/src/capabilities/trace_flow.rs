@@ -1115,6 +1115,7 @@ fn analyzer_language_name(language: AnalyzerLanguage) -> &'static str {
         AnalyzerLanguage::Auto => "auto",
         AnalyzerLanguage::Go => "go",
         AnalyzerLanguage::Java => "java",
+        AnalyzerLanguage::Php => "php",
         AnalyzerLanguage::Python => "python",
         AnalyzerLanguage::Rust => "rust",
         AnalyzerLanguage::Typescript => "typescript",

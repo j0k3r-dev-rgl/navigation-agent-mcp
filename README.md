@@ -92,14 +92,14 @@ By default the server analyzes the current working directory. To pin a specific 
 
 This table MUST stay in the README because it is the fastest way to understand the public support surface.
 
-| Capability | Java | TypeScript / JavaScript | Python | Rust | Go | All Files |
-|---|---|---|---|---|---|---|
-| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ✅ Verified on `examples/python` tree | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
-| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` symbols | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
-| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/python` source | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
-| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ✅ Verified on `examples/python` FastAPI-style routes | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
-| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ✅ Verified end-to-end on `examples/python` deep recursive trees | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
-| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ✅ Verified end-to-end on `examples/python` recursive impact analysis | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| Capability | Java | TypeScript / JavaScript | PHP | Python | Rust | Go | All Files |
+|---|---|---|---|---|---|---|---|
+| `code.inspect_tree` | ✅ Verified on real Spring project tree | ✅ Verified on real React Router project tree | ✅ Verified on `examples/php` tree | ✅ Verified on `examples/python` tree | ✅ Verified on this repository | ✅ Verified on `examples/go` tree | ✅ |
+| `code.find_symbol` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/php` symbols | ✅ Verified on `examples/python` symbols | ✅ Verified on this repository | ✅ Verified on `examples/go` method lookup | — |
+| `code.search_text` | ✅ Verified on real Spring code | ✅ Verified on real React Router code | ✅ Verified on `examples/php` source | ✅ Verified on `examples/python` source | ✅ Verified on this repository | ✅ Verified on `examples/go` text search | ✅ |
+| `code.list_endpoints` | ✅ Verified on real Spring REST / GraphQL code | ✅ Verified on real React Router route modules | ⚠️ Stub implementation (framework-agnostic) | ✅ Verified on `examples/python` FastAPI-style routes | ⚠️ Correctly returns no endpoints for this Rust engine project | ⚠️ Responds, but the current Go example has no useful endpoint detection yet | — |
+| `code.trace_flow` | ✅ Verified on real Spring code | ✅ Verified on real React Router route flow | ✅ Verified end-to-end on `examples/php` | ✅ Verified end-to-end on `examples/python` deep recursive trees | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
+| `code.trace_callers` | ✅ Verified on real Spring code | ✅ Verified on real React Router helper callers | ✅ Verified end-to-end on `examples/php` | ✅ Verified end-to-end on `examples/python` recursive impact analysis | ✅ Verified on this repository with qualified Rust symbols | ✅ Verified end-to-end on `examples/go` | — |
 
 Legend:
 

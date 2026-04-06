@@ -1,4 +1,4 @@
-export const PUBLIC_LANGUAGES = ["typescript", "javascript", "go", "java", "python", "rust"] as const;
+export const PUBLIC_LANGUAGES = ["typescript", "javascript", "go", "java", "php", "python", "rust"] as const;
 export type PublicLanguage = (typeof PUBLIC_LANGUAGES)[number];
 
 export const PUBLIC_FRAMEWORKS = ["react-router", "spring"] as const;

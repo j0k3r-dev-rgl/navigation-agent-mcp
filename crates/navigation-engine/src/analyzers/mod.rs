@@ -2,6 +2,7 @@ pub mod common;
 pub mod go;
 pub mod java;
 pub mod language_analyzer;
+pub mod php;
 pub mod python;
 pub mod registry;
 pub mod rust;

@@ -1,4 +1,4 @@
-export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
 export type PublicLanguage = (typeof PUBLIC_LANGUAGES)[number];
 export declare const PUBLIC_FRAMEWORKS: readonly ["react-router", "spring"];
 export type PublicFramework = (typeof PUBLIC_FRAMEWORKS)[number];
@@ -408,7 +408,7 @@ export declare const listEndpointsInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -482,7 +482,7 @@ export declare const findSymbolInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -562,7 +562,7 @@ export declare const searchTextInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -614,7 +614,7 @@ export declare const traceFlowInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -680,7 +680,7 @@ export declare const traceCallersInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -798,7 +798,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -872,7 +872,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -952,7 +952,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -1004,7 +1004,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -1070,7 +1070,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
