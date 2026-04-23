@@ -100,7 +100,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Provide an existing file path inside the workspace root.",
+                    suggestion: "Provide an existing file path inside the workspace root. When the defining file is unknown, resolve it with code.find_symbol first.",
                     details,
                 },
             ],
@@ -118,7 +118,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Use a file path inside the workspace root.",
+                    suggestion: "Use a file path inside the workspace root. If you only know the symbol name, use code.find_symbol to get a valid workspace path first.",
                     details,
                 },
             ],
@@ -136,7 +136,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code: "BACKEND_EXECUTION_FAILED",
                     message,
                     retryable,
-                    suggestion: "Verify the engine supports workspace.trace_flow and retry.",
+                    suggestion: "Verify the engine supports workspace.trace_flow and retry. If the symbol path is uncertain, resolve it again with code.find_symbol before retrying.",
                     details,
                 },
             ],
@@ -174,12 +174,12 @@ function emptyData(path = "", symbol = "") {
 }
 function buildSummary(symbol, path, calleeCount) {
     if (calleeCount === 0) {
-        return `Trace completed for '${symbol}' from '${path}' with no callees found.`;
+        return `Trace completed for '${symbol}' from '${path}' with no downstream callees found. Use this when validating whether logic stays local to the defining symbol before editing.`;
     }
     if (calleeCount === 1) {
-        return `Traced 1 callee for '${symbol}' from '${path}'.`;
+        return `Traced 1 downstream callee for '${symbol}' from '${path}'. Read the traced file only if you need implementation details before changing logic.`;
     }
-    return `Traced ${calleeCount} callees for '${symbol}' from '${path}'.`;
+    return `Traced ${calleeCount} downstream callees for '${symbol}' from '${path}'. Use the returned tree to inspect execution flow before modifying behavior.`;
 }
 function countRootChildren(root) {
     return root?.callers.length ?? 0;

@@ -127,6 +127,7 @@ fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError>
         "auto" => Ok(AnalyzerLanguage::Auto),
         "go" => Ok(AnalyzerLanguage::Go),
         "java" => Ok(AnalyzerLanguage::Java),
+        "csharp" => Ok(AnalyzerLanguage::Csharp),
         "python" => Ok(AnalyzerLanguage::Python),
         "rust" => Ok(AnalyzerLanguage::Rust),
         "typescript" => Ok(AnalyzerLanguage::Typescript),

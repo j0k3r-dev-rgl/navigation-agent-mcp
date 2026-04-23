@@ -324,3 +324,99 @@ fn traces_go_interface_callers_to_concrete_repository_implementation() {
         recursive.classifications.indirect_callers
     );
 }
+
+#[test]
+fn traces_direct_csharp_callers_through_field_backed_services() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/Services")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/Infrastructure")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/Infrastructure/OrderRepository.cs"),
+        r#"
+namespace NavigationExample.Infrastructure;
+public class OrderRepository : IOrderRepository {
+    public async Task GetByIdAsync(Guid id) { return null; }
+}"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/Services/OrderWorkflowService.cs"),
+        r#"
+namespace NavigationExample.Services;
+public class OrderWorkflowService {
+    private readonly IOrderRepository _repository;
+    public OrderWorkflowService(IOrderRepository repository) { _repository = repository; }
+    public async Task ProcessOrderAsync(Guid orderId) {
+        var order = await _repository.GetByIdAsync(orderId);
+    }
+}"#,
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "src/Infrastructure/OrderRepository.cs".to_string(),
+            symbol: "GetByIdAsync".to_string(),
+            analyzer_language: "csharp".to_string(),
+            public_language_filter: Some("csharp".to_string()),
+            recursive: false,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].path, "src/Services/OrderWorkflowService.cs");
+    assert_eq!(
+        result.items[0].caller_symbol.as_deref(),
+        Some("OrderWorkflowService.ProcessOrderAsync")
+    );
+}
+
+#[test]
+fn traces_recursive_csharp_callers() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/App.cs"),
+        r#"
+public class A {
+    public void Target() {}
+}
+public class B {
+    private A _a = new A();
+    public void CallTarget() { _a.Target(); }
+}
+public class C {
+    private B _b = new B();
+    public void CallB() { _b.CallTarget(); }
+}
+"#,
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "src/App.cs".to_string(),
+            symbol: "A.Target".to_string(),
+            analyzer_language: "csharp".to_string(),
+            public_language_filter: Some("csharp".to_string()),
+            recursive: true,
+            max_depth: Some(3),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].caller_symbol.as_deref(), Some("B.CallTarget"));
+    
+    let recursive = result.recursive.expect("recursive payload");
+    assert_eq!(recursive.classifications.direct_callers.len(), 1);
+    assert_eq!(recursive.classifications.indirect_callers.len(), 1);
+    assert_eq!(recursive.classifications.indirect_callers[0].symbol, "C.CallB");
+}

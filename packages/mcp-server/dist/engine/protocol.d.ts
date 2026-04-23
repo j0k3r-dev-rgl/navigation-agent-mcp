@@ -1,7 +1,7 @@
 import type { MatchMode, PublicFramework, PublicLanguage, PublicEndpointKind, PublicSymbolKind } from "../contracts/public/code.js";
 export declare const ENGINE_CAPABILITIES: readonly ["workspace.inspect_tree", "workspace.find_symbol", "workspace.list_endpoints", "workspace.search_text", "workspace.trace_flow", "workspace.trace_callers"];
 export type EngineCapability = (typeof ENGINE_CAPABILITIES)[number];
-export type AnalyzerLanguage = "auto" | "go" | "java" | "typescript" | "python" | "rust";
+export type AnalyzerLanguage = "auto" | "go" | "java" | "typescript" | "python" | "rust" | "csharp";
 export interface InspectTreeEnginePayload {
     path: string | null;
     maxDepth: number;

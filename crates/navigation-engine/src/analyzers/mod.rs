@@ -1,4 +1,5 @@
 pub mod common;
+pub mod csharp;
 pub mod go;
 pub mod java;
 pub mod language_analyzer;

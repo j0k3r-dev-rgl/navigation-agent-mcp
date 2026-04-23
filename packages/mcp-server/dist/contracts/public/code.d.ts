@@ -1,4 +1,4 @@
-export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+export declare const PUBLIC_LANGUAGES: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
 export type PublicLanguage = (typeof PUBLIC_LANGUAGES)[number];
 export declare const PUBLIC_FRAMEWORKS: readonly ["react-router", "spring"];
 export type PublicFramework = (typeof PUBLIC_FRAMEWORKS)[number];
@@ -366,6 +366,7 @@ export declare const inspectTreeInputSchema: {
 };
 export declare const listEndpointsInputSchema: {
     readonly type: "object";
+    readonly description: "Workspace-only route surface discovery. Use this to enumerate framework-detectable public routes, REST endpoints, and GraphQL resolvers; use find_symbol or trace tools when you need symbol-level flow or impact analysis.";
     readonly properties: {
         readonly path: {
             readonly anyOf: readonly [{
@@ -374,6 +375,7 @@ export declare const listEndpointsInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional workspace-relative scope for endpoint discovery. Use this to audit a module, feature area, or app subtree instead of the whole workspace.";
         };
         readonly language: {
             readonly anyOf: readonly [{
@@ -382,6 +384,7 @@ export declare const listEndpointsInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional language hint for endpoint detection. Useful when the workspace contains multiple stacks.";
         };
         readonly framework: {
             readonly anyOf: readonly [{
@@ -390,25 +393,28 @@ export declare const listEndpointsInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional framework hint such as spring or react-router. This is often the most important filter because endpoint detection depends on framework-specific patterns.";
         };
         readonly kind: {
             readonly allOf: readonly [{
                 readonly $ref: "#/$defs/PublicEndpointKind";
             }];
             readonly default: "any";
+            readonly description: "Endpoint surface filter. Use rest, graphql, or route when you want a narrower public entrypoint inventory.";
         };
         readonly limit: {
             readonly type: "integer";
             readonly default: 50;
             readonly minimum: 1;
             readonly maximum: 200;
+            readonly description: "Maximum number of detected entrypoints to return. Lower this when scoping tightly; raise it for broader audits of the route surface.";
         };
     };
     readonly required: readonly [];
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -430,10 +436,12 @@ export declare const listEndpointsInputSchema: {
 };
 export declare const findSymbolInputSchema: {
     readonly type: "object";
+    readonly description: "Workspace-only symbol lookup. Use this first when you know the symbol name but still need the defining file path before running code.trace_callers or code.trace_flow.";
     readonly properties: {
         readonly symbol: {
             readonly type: "string";
             readonly minLength: 1;
+            readonly description: "Symbol name to resolve in the current workspace. Use exact names when possible to get the best trace entrypoint.";
         };
         readonly language: {
             readonly anyOf: readonly [{
@@ -442,6 +450,7 @@ export declare const findSymbolInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional language hint for narrowing symbol lookup inside the workspace.";
         };
         readonly framework: {
             readonly anyOf: readonly [{
@@ -450,18 +459,21 @@ export declare const findSymbolInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional framework hint such as react-router or spring to improve framework-aware symbol matching.";
         };
         readonly kind: {
             readonly allOf: readonly [{
                 readonly $ref: "#/$defs/PublicSymbolKind";
             }];
             readonly default: "any";
+            readonly description: "Optional symbol kind filter. Narrow this when you know whether the target is a class, function, method, or other specific symbol type.";
         };
         readonly match: {
             readonly allOf: readonly [{
                 readonly $ref: "#/$defs/MatchMode";
             }];
             readonly default: "exact";
+            readonly description: "Match strategy for symbol lookup. Prefer exact for precise tracing workflows; use fuzzy only when the exact symbol name is uncertain.";
         };
         readonly path: {
             readonly anyOf: readonly [{
@@ -470,19 +482,21 @@ export declare const findSymbolInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional workspace-relative scope to narrow lookup before tracing or reading files.";
         };
         readonly limit: {
             readonly type: "integer";
             readonly default: 50;
             readonly minimum: 1;
             readonly maximum: 200;
+            readonly description: "Maximum number of matching definitions to return. Lower this when you already have a narrow scope and want a faster trace handoff.";
         };
     };
     readonly required: readonly ["symbol"];
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -562,7 +576,7 @@ export declare const searchTextInputSchema: {
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -584,14 +598,17 @@ export declare const searchTextInputSchema: {
 };
 export declare const traceFlowInputSchema: {
     readonly type: "object";
+    readonly description: "Workspace-only forward trace for a known symbol. Use this after code.find_symbol when you need downstream flow before modifying a function, method, class entrypoint, or route handler.";
     readonly properties: {
         readonly path: {
             readonly type: "string";
             readonly minLength: 1;
+            readonly description: "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing.";
         };
         readonly symbol: {
             readonly type: "string";
             readonly minLength: 1;
+            readonly description: "Exact symbol to trace forward from the given file. Use this to inspect what the symbol calls or touches downstream.";
         };
         readonly language: {
             readonly anyOf: readonly [{
@@ -600,6 +617,7 @@ export declare const traceFlowInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.";
         };
         readonly framework: {
             readonly anyOf: readonly [{
@@ -608,13 +626,14 @@ export declare const traceFlowInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.";
         };
     };
     readonly required: readonly ["path", "symbol"];
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -636,14 +655,17 @@ export declare const traceFlowInputSchema: {
 };
 export declare const traceCallersInputSchema: {
     readonly type: "object";
+    readonly description: "Workspace-only reverse trace for a known symbol. Use this after code.find_symbol for impact analysis before changing signatures, renaming functions, or modifying shared behavior.";
     readonly properties: {
         readonly path: {
             readonly type: "string";
             readonly minLength: 1;
+            readonly description: "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing callers.";
         };
         readonly symbol: {
             readonly type: "string";
             readonly minLength: 1;
+            readonly description: "Exact symbol to trace backward from the given file. Use this to learn who calls the symbol before changing or removing it.";
         };
         readonly language: {
             readonly anyOf: readonly [{
@@ -652,6 +674,7 @@ export declare const traceCallersInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.";
         };
         readonly framework: {
             readonly anyOf: readonly [{
@@ -660,10 +683,12 @@ export declare const traceCallersInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.";
         };
         readonly recursive: {
             readonly type: "boolean";
             readonly default: false;
+            readonly description: "When true, continue reverse tracing beyond direct callers to build a broader impact tree across the workspace.";
         };
         readonly max_depth: {
             readonly anyOf: readonly [{
@@ -674,13 +699,14 @@ export declare const traceCallersInputSchema: {
                 readonly type: "null";
             }];
             readonly default: null;
+            readonly description: "Optional recursion limit for recursive caller tracing. Lower values are useful when you want impact analysis without a large response.";
         };
     };
     readonly required: readonly ["path", "symbol"];
     readonly $defs: {
         readonly PublicLanguage: {
             readonly type: "string";
-            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+            readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
         };
         readonly PublicFramework: {
             readonly type: "string";
@@ -756,6 +782,7 @@ export declare const codeToolSchemas: {
     };
     readonly "code.list_endpoints": {
         readonly type: "object";
+        readonly description: "Workspace-only route surface discovery. Use this to enumerate framework-detectable public routes, REST endpoints, and GraphQL resolvers; use find_symbol or trace tools when you need symbol-level flow or impact analysis.";
         readonly properties: {
             readonly path: {
                 readonly anyOf: readonly [{
@@ -764,6 +791,7 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional workspace-relative scope for endpoint discovery. Use this to audit a module, feature area, or app subtree instead of the whole workspace.";
             };
             readonly language: {
                 readonly anyOf: readonly [{
@@ -772,6 +800,7 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional language hint for endpoint detection. Useful when the workspace contains multiple stacks.";
             };
             readonly framework: {
                 readonly anyOf: readonly [{
@@ -780,25 +809,28 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional framework hint such as spring or react-router. This is often the most important filter because endpoint detection depends on framework-specific patterns.";
             };
             readonly kind: {
                 readonly allOf: readonly [{
                     readonly $ref: "#/$defs/PublicEndpointKind";
                 }];
                 readonly default: "any";
+                readonly description: "Endpoint surface filter. Use rest, graphql, or route when you want a narrower public entrypoint inventory.";
             };
             readonly limit: {
                 readonly type: "integer";
                 readonly default: 50;
                 readonly minimum: 1;
                 readonly maximum: 200;
+                readonly description: "Maximum number of detected entrypoints to return. Lower this when scoping tightly; raise it for broader audits of the route surface.";
             };
         };
         readonly required: readonly [];
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -820,10 +852,12 @@ export declare const codeToolSchemas: {
     };
     readonly "code.find_symbol": {
         readonly type: "object";
+        readonly description: "Workspace-only symbol lookup. Use this first when you know the symbol name but still need the defining file path before running code.trace_callers or code.trace_flow.";
         readonly properties: {
             readonly symbol: {
                 readonly type: "string";
                 readonly minLength: 1;
+                readonly description: "Symbol name to resolve in the current workspace. Use exact names when possible to get the best trace entrypoint.";
             };
             readonly language: {
                 readonly anyOf: readonly [{
@@ -832,6 +866,7 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional language hint for narrowing symbol lookup inside the workspace.";
             };
             readonly framework: {
                 readonly anyOf: readonly [{
@@ -840,18 +875,21 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional framework hint such as react-router or spring to improve framework-aware symbol matching.";
             };
             readonly kind: {
                 readonly allOf: readonly [{
                     readonly $ref: "#/$defs/PublicSymbolKind";
                 }];
                 readonly default: "any";
+                readonly description: "Optional symbol kind filter. Narrow this when you know whether the target is a class, function, method, or other specific symbol type.";
             };
             readonly match: {
                 readonly allOf: readonly [{
                     readonly $ref: "#/$defs/MatchMode";
                 }];
                 readonly default: "exact";
+                readonly description: "Match strategy for symbol lookup. Prefer exact for precise tracing workflows; use fuzzy only when the exact symbol name is uncertain.";
             };
             readonly path: {
                 readonly anyOf: readonly [{
@@ -860,19 +898,21 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional workspace-relative scope to narrow lookup before tracing or reading files.";
             };
             readonly limit: {
                 readonly type: "integer";
                 readonly default: 50;
                 readonly minimum: 1;
                 readonly maximum: 200;
+                readonly description: "Maximum number of matching definitions to return. Lower this when you already have a narrow scope and want a faster trace handoff.";
             };
         };
         readonly required: readonly ["symbol"];
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -952,7 +992,7 @@ export declare const codeToolSchemas: {
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -974,14 +1014,17 @@ export declare const codeToolSchemas: {
     };
     readonly "code.trace_flow": {
         readonly type: "object";
+        readonly description: "Workspace-only forward trace for a known symbol. Use this after code.find_symbol when you need downstream flow before modifying a function, method, class entrypoint, or route handler.";
         readonly properties: {
             readonly path: {
                 readonly type: "string";
                 readonly minLength: 1;
+                readonly description: "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing.";
             };
             readonly symbol: {
                 readonly type: "string";
                 readonly minLength: 1;
+                readonly description: "Exact symbol to trace forward from the given file. Use this to inspect what the symbol calls or touches downstream.";
             };
             readonly language: {
                 readonly anyOf: readonly [{
@@ -990,6 +1033,7 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.";
             };
             readonly framework: {
                 readonly anyOf: readonly [{
@@ -998,13 +1042,14 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.";
             };
         };
         readonly required: readonly ["path", "symbol"];
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
             };
             readonly PublicFramework: {
                 readonly type: "string";
@@ -1026,14 +1071,17 @@ export declare const codeToolSchemas: {
     };
     readonly "code.trace_callers": {
         readonly type: "object";
+        readonly description: "Workspace-only reverse trace for a known symbol. Use this after code.find_symbol for impact analysis before changing signatures, renaming functions, or modifying shared behavior.";
         readonly properties: {
             readonly path: {
                 readonly type: "string";
                 readonly minLength: 1;
+                readonly description: "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing callers.";
             };
             readonly symbol: {
                 readonly type: "string";
                 readonly minLength: 1;
+                readonly description: "Exact symbol to trace backward from the given file. Use this to learn who calls the symbol before changing or removing it.";
             };
             readonly language: {
                 readonly anyOf: readonly [{
@@ -1042,6 +1090,7 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.";
             };
             readonly framework: {
                 readonly anyOf: readonly [{
@@ -1050,10 +1099,12 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.";
             };
             readonly recursive: {
                 readonly type: "boolean";
                 readonly default: false;
+                readonly description: "When true, continue reverse tracing beyond direct callers to build a broader impact tree across the workspace.";
             };
             readonly max_depth: {
                 readonly anyOf: readonly [{
@@ -1064,13 +1115,14 @@ export declare const codeToolSchemas: {
                     readonly type: "null";
                 }];
                 readonly default: null;
+                readonly description: "Optional recursion limit for recursive caller tracing. Lower values are useful when you want impact analysis without a large response.";
             };
         };
         readonly required: readonly ["path", "symbol"];
         readonly $defs: {
             readonly PublicLanguage: {
                 readonly type: "string";
-                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust"];
+                readonly enum: readonly ["typescript", "javascript", "go", "java", "php", "python", "rust", "csharp"];
             };
             readonly PublicFramework: {
                 readonly type: "string";

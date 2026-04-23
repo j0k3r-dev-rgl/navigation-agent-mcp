@@ -67,7 +67,7 @@ function buildSuccessResponse(input, result) {
                     code: "RESULT_TRUNCATED",
                     message: `Result set exceeded the requested limit of ${input.limit} items.`,
                     retryable: false,
-                    suggestion: "Increase limit or narrow the path/language/framework filter.",
+                    suggestion: "Increase limit or narrow the path/language/framework filter. Use this tool to inventory likely public entrypoints, then switch to find_symbol or trace tools for deeper analysis.",
                     details: {
                         returned: returnedCount,
                         total: result.totalMatched,
@@ -109,7 +109,7 @@ function buildValidationErrorResponse(issues) {
                 code: "INVALID_INPUT",
                 message: "One or more input fields are invalid.",
                 retryable: false,
-                suggestion: "Correct the invalid fields and try again.",
+                suggestion: "Correct the invalid fields and try again. Use framework and kind filters to describe the entrypoint surface you want to inventory.",
                 details: { issues },
             },
         ],
@@ -129,7 +129,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Provide an existing file or directory path inside the workspace root.",
+                    suggestion: "Provide an existing file or directory path inside the workspace root, or omit the path filter to inventory endpoints across the whole workspace.",
                     details,
                 },
             ],
@@ -147,7 +147,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Use a path inside the workspace root or omit the path filter.",
+                    suggestion: "Use a path inside the workspace root or omit the path filter. This tool only inventories framework-detectable entrypoints inside the current workspace.",
                     details,
                 },
             ],
@@ -165,7 +165,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code: "BACKEND_EXECUTION_FAILED",
                     message,
                     retryable,
-                    suggestion: "Verify the engine supports workspace.list_endpoints and retry.",
+                    suggestion: "Verify the engine supports workspace.list_endpoints and retry. If you need a specific handler's logic or impact, continue with find_symbol, trace_callers, or trace_flow instead.",
                     details,
                 },
             ],
@@ -194,13 +194,13 @@ function buildEngineFailureResponse(input, error) {
 function buildSummary(count, truncated, kind) {
     const kindLabel = kind === "any" ? "endpoints" : `${kind} endpoints`;
     if (count === 0) {
-        return `No${kindLabel} found.`;
+        return `No ${kindLabel} found. This tool only reports framework-detectable public entrypoints in the current workspace.`;
     }
     if (truncated) {
-        return `Found ${count} ${kindLabel} and returned a truncated subset.`;
+        return `Found ${count} ${kindLabel} and returned a truncated subset. Use the results to locate likely entrypoints, then switch to find_symbol or trace tools for deeper analysis.`;
     }
     if (count === 1) {
-        return `Found 1 ${kindLabel.replace(/s$/, "")}.`;
+        return `Found 1 ${kindLabel.replace(/s$/, "")}. Use it as a likely public entrypoint before reading implementation files.`;
     }
-    return `Found ${count} ${kindLabel}.`;
+    return `Found ${count} ${kindLabel}. Use this inventory to map the exposed route surface before deeper symbol or flow analysis.`;
 }

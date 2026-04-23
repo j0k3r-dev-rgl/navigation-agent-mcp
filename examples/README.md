@@ -5,4 +5,6 @@ Carpeta con proyectos pequeños para probar `find_symbol`, `trace_flow`, `trace_
 ## Lenguajes
 
 - `go/` — app pequeña con handlers, services y repository
-- `python/` — espacio reservado para ejemplos Python
+- `php/` — app básica para navegación en PHP
+- `python/` — ejemplo FastAPI para probar símbolos y flujos en Python
+- `csharp/` — app básica de .NET Core para probar navegación en C# (Domain, Services, Infrastructure)

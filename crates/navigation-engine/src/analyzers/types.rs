@@ -8,6 +8,7 @@ pub enum AnalyzerLanguage {
     Auto,
     Go,
     Java,
+    Csharp,
     Php,
     Python,
     Rust,
@@ -136,6 +137,7 @@ pub fn infer_public_language(path: &Path) -> Option<String> {
         Some(".php") => Some("php".to_string()),
         Some(".py") => Some("python".to_string()),
         Some(".rs") => Some("rust".to_string()),
+        Some(".cs") => Some("csharp".to_string()),
         _ => None,
     }
 }
@@ -146,7 +148,7 @@ pub fn normalize_public_symbol_kind(raw_kind: &str) -> String {
         "interface" | "interface_declaration" => "interface",
         "function" | "function_declaration" => "function",
         "method" | "method_declaration" | "method_signature" => "method",
-        "type" | "type_alias" | "type_alias_declaration" | "record" => "type",
+        "type" | "type_alias" | "type_alias_declaration" | "record" | "record_declaration" => "type",
         "enum" | "enum_declaration" => "enum",
         "constructor" | "constructor_declaration" => "constructor",
         "annotation" | "annotation_type" => "annotation",

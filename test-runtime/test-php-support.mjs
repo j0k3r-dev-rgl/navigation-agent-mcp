@@ -5,7 +5,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const enginePath = path.join(__dirname, "crates/navigation-engine");
+const repoRoot = path.join(__dirname, "..");
+const enginePath = path.join(repoRoot, "crates/navigation-engine");
 
 async function sendRequest(method, params) {
   return new Promise((resolve, reject) => {
@@ -42,7 +43,7 @@ async function sendRequest(method, params) {
 async function testPhpSupport() {
   console.log("🧪 Testing PHP support in navigation-agent-mcp\n");
 
-  const phpExampleDir = path.join(__dirname, "examples/php");
+  const phpExampleDir = path.join(repoRoot, "examples/php");
 
   // Test 1: find_symbol
   console.log("1️⃣  Testing code.find_symbol for PHP classes...");

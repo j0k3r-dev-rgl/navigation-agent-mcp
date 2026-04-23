@@ -613,3 +613,39 @@ fn supports_rust_exact_fuzzy_kind_path_truncation_and_unsupported_scopes() {
     assert_eq!(non_rust_scope.total_matched, 0);
     assert!(non_rust_scope.items.is_empty());
 }
+
+#[test]
+fn returns_real_csharp_results_with_language_filter() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src")).unwrap();
+    std::fs::write(
+        workspace.path().join("src/ExampleService.cs"),
+        "namespace Demo { public class ExampleService { public ExampleService() {} public void Execute() {} } }\n",
+    )
+    .unwrap();
+
+    let result = find_symbol(
+        workspace.path().to_string_lossy().as_ref(),
+        FindSymbolRequestPayload {
+            symbol: "ExampleService".to_string(),
+            path: Some("src".to_string()),
+            analyzer_language: "csharp".to_string(),
+            public_language_filter: Some("csharp".to_string()),
+            kind: "any".to_string(),
+            match_mode: "exact".to_string(),
+            limit: 50,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.resolved_path.as_deref(), Some("src"));
+    assert_eq!(result.total_matched, 2);
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(
+        result.items[0].path,
+        "src/ExampleService.cs"
+    );
+    assert_eq!(result.items[0].kind, "class");
+    assert_eq!(result.items[0].language.as_deref(), Some("csharp"));
+    assert_eq!(result.items[1].kind, "constructor");
+}

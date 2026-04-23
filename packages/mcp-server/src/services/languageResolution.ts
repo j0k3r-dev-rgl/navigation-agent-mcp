@@ -34,6 +34,9 @@ export function resolveAnalyzerLanguage(
   if (effective === "java") {
     return "java";
   }
+  if (effective === "csharp") {
+    return "csharp";
+  }
   if (effective === "python") {
     return "python";
   }
@@ -65,6 +68,9 @@ export function inferLanguageFromPath(path: string): PublicLanguage | null {
   }
   if (normalized.endsWith(".rs")) {
     return "rust";
+  }
+  if (normalized.endsWith(".cs")) {
+    return "csharp";
   }
   return null;
 }

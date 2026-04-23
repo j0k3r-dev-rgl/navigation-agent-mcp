@@ -67,7 +67,7 @@ function buildSuccessResponse(input, result) {
                     code: "RESULT_TRUNCATED",
                     message: `Result set exceeded the requested limit of ${input.limit} files.`,
                     retryable: false,
-                    suggestion: "Increase limit or narrow the path/include/language filters.",
+                    suggestion: "Increase limit or narrow the path/include/language filters. Use the topFiles list to decide which files to read, and prefer code.find_symbol plus trace tools when you need semantic function flow or impact analysis.",
                     details: {
                         returnedFiles: returnedFileCount,
                         totalFiles: result.totalFileCount,
@@ -113,7 +113,7 @@ function buildValidationErrorResponse(issues) {
                 code: "INVALID_INPUT",
                 message: "One or more input fields are invalid.",
                 retryable: false,
-                suggestion: "Correct the invalid fields and try again.",
+                suggestion: "Correct the invalid fields and try again. Use search_text for textual patterns; use code.find_symbol when you need a definitional path for tracing.",
                 details: { issues },
             },
         ],
@@ -133,7 +133,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Provide an existing file or directory path inside the workspace root.",
+                    suggestion: "Provide an existing file or directory path inside the workspace root, or omit the path filter to search the whole workspace.",
                     details,
                 },
             ],
@@ -151,7 +151,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code,
                     message,
                     retryable,
-                    suggestion: "Use a path inside the workspace root or omit the path filter.",
+                    suggestion: "Use a path inside the workspace root or omit the path filter. This tool only searches the current workspace.",
                     details,
                 },
             ],
@@ -169,7 +169,7 @@ function buildMappedErrorResponse(input, code, message, details, retryable) {
                     code: "BACKEND_EXECUTION_FAILED",
                     message,
                     retryable,
-                    suggestion: "Verify the engine supports workspace.search_text and retry.",
+                    suggestion: "Verify the engine supports workspace.search_text and retry. If you actually need symbol definitions or call flow, switch to code.find_symbol and the trace tools instead.",
                     details,
                 },
             ],
@@ -236,13 +236,13 @@ function buildTopFiles(items) {
 }
 function buildSummary(query, fileCount, matchCount, truncated) {
     if (matchCount === 0) {
-        return `No text matches found for '${query}'.`;
+        return `No text matches found for '${query}'. If you expected a symbol definition rather than raw text matches, try code.find_symbol instead.`;
     }
     if (truncated) {
-        return `Found ${matchCount} text matches across ${fileCount} files for '${query}' and returned a truncated subset.`;
+        return `Found ${matchCount} text matches across ${fileCount} files for '${query}' and returned a truncated subset. Use topFiles to prioritize reads, or switch to code.find_symbol plus trace tools when you need semantic analysis.`;
     }
     if (matchCount === 1) {
-        return `Found 1 text match in 1 file for '${query}'.`;
+        return `Found 1 text match in 1 file for '${query}'. Read that file if needed, but prefer code.find_symbol when the goal is tracing a defined symbol.`;
     }
-    return `Found ${matchCount} text matches across ${fileCount} files for '${query}'.`;
+    return `Found ${matchCount} text matches across ${fileCount} files for '${query}'. Use this for textual discovery; use code.find_symbol plus trace tools for symbol-level flow or impact analysis.`;
 }
