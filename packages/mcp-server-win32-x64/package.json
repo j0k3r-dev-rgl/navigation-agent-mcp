@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server-win32-x64",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Windows x64 binary for @navigation-agent/mcp-server. Install the main package instead.",
   "os": [
     "win32"

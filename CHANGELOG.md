@@ -1,3 +1,11 @@
+## [0.7.1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.7.0...v0.7.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* clarify MCP contracts and automate releases ([2b5dafc](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/2b5dafc7285bd54423bcdb59a04212f5a148f525))
+* sync lockfile with release versions ([95738eb](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/95738ebcfa1d50368c5bbf3d9c5bba2b7c1f3da3))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
