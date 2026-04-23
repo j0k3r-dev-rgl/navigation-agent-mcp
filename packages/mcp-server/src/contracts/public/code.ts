@@ -449,28 +449,40 @@ export const inspectTreeInputSchema = {
 
 export const listEndpointsInputSchema = {
   type: "object",
+  description:
+    "Workspace-only route surface discovery. Use this to enumerate framework-detectable public routes, REST endpoints, and GraphQL resolvers; use find_symbol or trace tools when you need symbol-level flow or impact analysis.",
   properties: {
     path: {
       anyOf: [{ type: "string" }, { type: "null" }],
       default: null,
+      description:
+        "Optional workspace-relative scope for endpoint discovery. Use this to audit a module, feature area, or app subtree instead of the whole workspace.",
     },
     language: {
       anyOf: [{ $ref: "#/$defs/PublicLanguage" }, { type: "null" }],
       default: null,
+      description:
+        "Optional language hint for endpoint detection. Useful when the workspace contains multiple stacks.",
     },
     framework: {
       anyOf: [{ $ref: "#/$defs/PublicFramework" }, { type: "null" }],
       default: null,
+      description:
+        "Optional framework hint such as spring or react-router. This is often the most important filter because endpoint detection depends on framework-specific patterns.",
     },
     kind: {
       allOf: [{ $ref: "#/$defs/PublicEndpointKind" }],
       default: "any",
+      description:
+        "Endpoint surface filter. Use rest, graphql, or route when you want a narrower public entrypoint inventory.",
     },
     limit: {
       type: "integer",
       default: 50,
       minimum: 1,
       maximum: 200,
+      description:
+        "Maximum number of detected entrypoints to return. Lower this when scoping tightly; raise it for broader audits of the route surface.",
     },
   },
   required: [],
@@ -479,36 +491,52 @@ export const listEndpointsInputSchema = {
 
 export const findSymbolInputSchema = {
   type: "object",
+  description:
+    "Workspace-only symbol lookup. Use this first when you know the symbol name but still need the defining file path before running code.trace_callers or code.trace_flow.",
   properties: {
     symbol: {
       type: "string",
       minLength: 1,
+      description:
+        "Symbol name to resolve in the current workspace. Use exact names when possible to get the best trace entrypoint.",
     },
     language: {
       anyOf: [{ $ref: "#/$defs/PublicLanguage" }, { type: "null" }],
       default: null,
+      description:
+        "Optional language hint for narrowing symbol lookup inside the workspace.",
     },
     framework: {
       anyOf: [{ $ref: "#/$defs/PublicFramework" }, { type: "null" }],
       default: null,
+      description:
+        "Optional framework hint such as react-router or spring to improve framework-aware symbol matching.",
     },
     kind: {
       allOf: [{ $ref: "#/$defs/PublicSymbolKind" }],
       default: "any",
+      description:
+        "Optional symbol kind filter. Narrow this when you know whether the target is a class, function, method, or other specific symbol type.",
     },
     match: {
       allOf: [{ $ref: "#/$defs/MatchMode" }],
       default: "exact",
+      description:
+        "Match strategy for symbol lookup. Prefer exact for precise tracing workflows; use fuzzy only when the exact symbol name is uncertain.",
     },
     path: {
       anyOf: [{ type: "string" }, { type: "null" }],
       default: null,
+      description:
+        "Optional workspace-relative scope to narrow lookup before tracing or reading files.",
     },
     limit: {
       type: "integer",
       default: 50,
       minimum: 1,
       maximum: 200,
+      description:
+        "Maximum number of matching definitions to return. Lower this when you already have a narrow scope and want a faster trace handoff.",
     },
   },
   required: ["symbol"],
@@ -561,16 +589,32 @@ export const searchTextInputSchema = {
 
 export const traceFlowInputSchema = {
   type: "object",
+  description:
+    "Workspace-only forward trace for a known symbol. Use this after code.find_symbol when you need downstream flow before modifying a function, method, class entrypoint, or route handler.",
   properties: {
-    path: { type: "string", minLength: 1 },
-    symbol: { type: "string", minLength: 1 },
+    path: {
+      type: "string",
+      minLength: 1,
+      description:
+        "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing.",
+    },
+    symbol: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Exact symbol to trace forward from the given file. Use this to inspect what the symbol calls or touches downstream.",
+    },
     language: {
       anyOf: [{ $ref: "#/$defs/PublicLanguage" }, { type: "null" }],
       default: null,
+      description:
+        "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.",
     },
     framework: {
       anyOf: [{ $ref: "#/$defs/PublicFramework" }, { type: "null" }],
       default: null,
+      description:
+        "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.",
     },
   },
   required: ["path", "symbol"],
@@ -579,20 +623,38 @@ export const traceFlowInputSchema = {
 
 export const traceCallersInputSchema = {
   type: "object",
+  description:
+    "Workspace-only reverse trace for a known symbol. Use this after code.find_symbol for impact analysis before changing signatures, renaming functions, or modifying shared behavior.",
   properties: {
-    path: { type: "string", minLength: 1 },
-    symbol: { type: "string", minLength: 1 },
+    path: {
+      type: "string",
+      minLength: 1,
+      description:
+        "File inside the current workspace where the target symbol is defined. Normally obtain this path from code.find_symbol before tracing callers.",
+    },
+    symbol: {
+      type: "string",
+      minLength: 1,
+      description:
+        "Exact symbol to trace backward from the given file. Use this to learn who calls the symbol before changing or removing it.",
+    },
     language: {
       anyOf: [{ $ref: "#/$defs/PublicLanguage" }, { type: "null" }],
       default: null,
+      description:
+        "Optional language hint for analyzer selection. Leave null to infer from framework or path when possible.",
     },
     framework: {
       anyOf: [{ $ref: "#/$defs/PublicFramework" }, { type: "null" }],
       default: null,
+      description:
+        "Optional framework hint such as react-router or spring to improve symbol resolution in framework-aware projects.",
     },
     recursive: {
       type: "boolean",
       default: false,
+      description:
+        "When true, continue reverse tracing beyond direct callers to build a broader impact tree across the workspace.",
     },
     max_depth: {
       anyOf: [
@@ -606,6 +668,8 @@ export const traceCallersInputSchema = {
         }
       ],
       default: null,
+      description:
+        "Optional recursion limit for recursive caller tracing. Lower values are useful when you want impact analysis without a large response.",
     },
   },
   required: ["path", "symbol"],

@@ -1,10 +1,11 @@
 ---
 name: navigation-mcp
-description: >
-  Prioritize the navigation MCP for structural code discovery, impact analysis,
-  and scoped reading before falling back only to targeted reads, globbing, or bash.
-  Trigger: When the task requires finding symbols, tracing flows, listing routes or endpoints,
-  inspecting code structure, or searching a workspace efficiently.
+ description: >
+   Prioritize the navigation MCP for workspace-only structural code discovery,
+   impact analysis, and scoped reading before falling back only to targeted reads,
+   globbing, or bash. Trigger: When the task requires finding symbols, tracing
+   flows, listing routes or endpoints, inspecting code structure, or searching
+   the current workspace efficiently.
 license: Apache-2.0
 compatibility: opencode
 metadata:
@@ -19,6 +20,13 @@ metadata:
 - Scoping the minimum set of files to read before editing
 - Performing impact analysis before changing shared code
 
+## Workspace Scope (Non-Negotiable)
+
+- Navigation MCP only sees the current local workspace.
+- It does **not** search the web, GitHub, external repositories, parent directories outside the workspace, or arbitrary system paths.
+- Treat every navigation result as workspace-scoped unless a tool explicitly states otherwise.
+- If the task targets something outside the workspace, state that limitation explicitly and switch to the appropriate tool instead of forcing navigation.
+
 ## Critical Rules
 
 1. Always start with a navigation tool — never open files cold.
@@ -30,6 +38,19 @@ metadata:
 7. Current public languages are `typescript`, `javascript`, `go`, `java`, `python`, and `rust`.
 8. Go and Python are now usable through the public contract for `find_symbol`, `search_text`, `trace_flow`, and `trace_callers`. `list_endpoints` also works for Python FastAPI/Flask-style decorators.
 9. `search_text` is compact by design: treat it as grouped match coordinates (`path`, `language`, `matchCount`, `line`, `spans`) plus `topFiles`, then read only the files you actually need.
+10. For workspace code discovery, navigation tools are the default path — not an optional optimization.
+11. Do not skip navigation just because a likely file path was mentioned in the prompt; use navigation first to verify scope unless the exact target file is already known and no discovery is needed.
+12. If an agent ignores these rules and jumps straight to `read`, `glob`, or bash search for discoverable workspace code, that is incorrect tool usage.
+
+## Agent Enforcement
+
+Use this decision rule strictly:
+
+1. **Need to discover or verify anything structural in the workspace?** Use a navigation tool first.
+2. **Need exact file contents after scope is narrowed?** Use `read` on the returned files only.
+3. **Navigation returned nothing, is unsupported for the task, or the target is outside workspace scope?** Only then use fallback tools.
+
+If you are about to inspect multiple files in the workspace without having used navigation first, stop and correct course.
 
 ## Tool Decision Guide
 
@@ -252,6 +273,7 @@ Goal: find every file that imports or uses a specific decorator or annotation
 - Use `bash` search tools only when navigation is genuinely unavailable or broken.
 - When a navigation tool returns partial results (`truncated: true`), narrow the scope with `path` or `limit` before falling back.
 - When validating support claims, prefer real-project checks over toy examples and contrast the output against real source files.
+- Do not treat user frustration, habit, or speed as a reason to skip navigation for workspace discovery.
 
 ## Real Support Snapshot
 
@@ -278,6 +300,7 @@ Use this table as guidance for expectations, not as a substitute for real valida
 ## Anti-Patterns
 
 - Opening files before running any navigation tool
+- Treating navigation as if it could inspect anything outside the current workspace
 - Using `bash grep` or `bash find` when `search_text` or `find_symbol` would answer directly
 - Calling `trace_flow` or `trace_callers` without getting the `path` from `find_symbol` first
 - Using `trace_flow` to find callers (wrong direction — use `trace_callers`)

@@ -1,6 +1,6 @@
 # @navigation-agent/mcp-server
 
-MCP server for code navigation and repository inspection. It exposes a stable public `code.*` tool surface for finding symbols, listing routes/endpoints, tracing execution flow, tracing callers, searching text, and inspecting workspace trees without opening files blindly.
+Workspace-only MCP server for structural code navigation and repository inspection. It exposes a stable public `code.*` tool surface for finding symbol definitions, tracing upstream callers for impact analysis, tracing downstream execution flow before logic changes, listing routes/endpoints, searching text, and inspecting workspace trees without opening files blindly.
 
 **npm:** [`@navigation-agent/mcp-server`](https://www.npmjs.com/package/@navigation-agent/mcp-server)
 
@@ -128,6 +128,92 @@ The public contract exposes exactly these six tools:
 
 Use `snake_case` parameters such as `max_depth`, `include_hidden`, and `file_pattern`.
 
+### Before changing a function or method
+
+Use this workflow whenever you need to understand behavior or impact inside the workspace:
+
+1. `code.find_symbol` — resolve the exact defining file first.
+2. `code.trace_callers` — inspect upstream impact before renaming, deleting, or changing a signature.
+3. `code.trace_flow` — inspect downstream execution before changing logic.
+4. `read` only the files returned by the trace results that actually matter.
+
+Rule of thumb:
+
+- choose `code.trace_callers` for **who depends on this?**
+- choose `code.trace_flow` for **what does this reach or invoke?**
+- if you need both impact and behavior, run both before editing
+
+Concrete workspace example:
+
+1. Resolve the symbol definition:
+
+```json
+{
+  "symbol": "create_order",
+  "language": "python",
+  "kind": "function",
+  "path": "examples/python"
+}
+```
+
+2. Inspect upstream impact before changing the function:
+
+```json
+{
+  "path": "examples/python/app/api/endpoints.py",
+  "symbol": "create_order",
+  "language": "python",
+  "recursive": true,
+  "max_depth": 3
+}
+```
+
+3. Inspect downstream behavior before changing the logic:
+
+```json
+{
+  "path": "examples/python/app/api/endpoints.py",
+  "symbol": "create_order",
+  "language": "python"
+}
+```
+
+Expected agent behavior:
+
+- use `code.find_symbol` first when the defining file is not already known
+- use `code.trace_callers` first when the risk is breaking callers
+- use `code.trace_flow` next when the risk is changing downstream behavior
+- only then `read` the traced files you actually need
+
+React Router example:
+
+```json
+{
+  "symbol": "action",
+  "kind": "function",
+  "framework": "react-router",
+  "path": "app/routes"
+}
+```
+
+```json
+{
+  "path": "app/routes/change-password.tsx",
+  "symbol": "action",
+  "framework": "react-router",
+  "recursive": true,
+  "max_depth": 2
+}
+```
+
+```json
+{
+  "path": "app/routes/change-password.tsx",
+  "symbol": "action",
+  "framework": "react-router"
+}
+```
+
 ### `code.search_text` response style
 
 `code.search_text` is optimized for agents:
@@ -205,7 +291,7 @@ These checks were verified against real projects instead of toy stubs:
 - `code.inspect_tree` works on real module trees
 - `code.find_symbol` works on real Spring classes
 - `code.search_text` works on real Java source
-- `code.list_endpoints` works against Spring controllers and GraphQL resolvers
+- `code.list_endpoints` inventories framework-detectable Spring REST controllers and GraphQL resolvers as likely public entrypoints
 - `code.trace_flow` works on real controller/resolver entrypoints
 - `code.trace_callers` works on Java use cases and can identify probable public entrypoints
 
@@ -218,7 +304,7 @@ Verified example:
 - `code.inspect_tree` works on real route trees
 - `code.find_symbol` works on route-module exports
 - `code.search_text` works on real route files
-- `code.list_endpoints` works for route-module `loader` / `action`
+- `code.list_endpoints` inventories React Router route-module `loader` / `action` exports as likely route entrypoints
 - `code.trace_flow` works for same-file route flow extraction
 - `code.trace_callers` works for same-file helpers and marks route exports as probable entrypoints
 
@@ -232,7 +318,7 @@ Verified example:
 - `code.inspect_tree` works on Python module trees
 - `code.find_symbol` works on Python classes, functions, and methods
 - `code.search_text` works on Python source files
-- `code.list_endpoints` works against FastAPI-style route decorators (`@router.get`, `@app.post`, etc.)
+- `code.list_endpoints` inventories FastAPI-style route decorators (`@router.get`, `@app.post`, etc.) as likely public API entrypoints
 - `code.trace_flow` works end-to-end for multi-module Python scenarios, capturing deep recursive trees including branching calls, instance methods (`self`), and cross-file resolution.
 - `code.trace_callers` works end-to-end for impact analysis, supporting recursive reverse-tracing across the entire workspace.
 
@@ -271,7 +357,7 @@ Real behavior today against `examples/go`:
 - `code.find_symbol` works for method lookup such as `CreateUser`
 - `code.trace_flow` works end-to-end on the example app and returns the recursive internal call tree
 - `code.trace_callers` works end-to-end on the example app, including callback/method-value references and interface-to-implementation reverse matches
-- `code.list_endpoints` still returns no useful endpoint detection for the current Go example
+- `code.list_endpoints` still returns no useful entrypoint inventory for the current Go example
 
 ---
 

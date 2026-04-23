@@ -103,7 +103,8 @@ function buildSuccessResponse(
             code: "RESULT_TRUNCATED",
             message: `Result set exceeded the requested limit of ${input.limit} items.`,
             retryable: false,
-            suggestion: "Increase limit or narrow the path/language filter.",
+            suggestion:
+              "Increase limit or narrow the path/language filter. Once you identify the right definition, pass its path to code.trace_callers or code.trace_flow instead of reading files broadly.",
             details: {
               returned: returnedCount,
               total: result.totalMatched,
@@ -141,7 +142,8 @@ function buildValidationErrorResponse(
         code: "INVALID_INPUT",
         message: "One or more input fields are invalid.",
         retryable: false,
-        suggestion: "Correct the invalid fields and try again.",
+        suggestion:
+          "Correct the invalid fields and try again. For tracing workflows, provide at least the symbol name and add path/language filters only when they help narrow the workspace search.",
         details: { issues },
       },
     ],
@@ -169,7 +171,8 @@ function buildMappedErrorResponse(
           code,
           message,
           retryable,
-          suggestion: "Provide an existing file or directory path inside the workspace root.",
+          suggestion:
+            "Provide an existing file or directory path inside the workspace root, or omit the path filter and search by symbol name first.",
           details,
         },
       ],
@@ -188,7 +191,8 @@ function buildMappedErrorResponse(
           code,
           message,
           retryable,
-          suggestion: "Use a path inside the workspace root or omit the path filter.",
+          suggestion:
+            "Use a path inside the workspace root or omit the path filter. This tool only resolves definitions inside the current workspace.",
           details,
         },
       ],
@@ -207,7 +211,8 @@ function buildMappedErrorResponse(
           code: "BACKEND_EXECUTION_FAILED",
           message,
           retryable,
-          suggestion: "Verify the engine supports workspace.find_symbol and retry.",
+          suggestion:
+            "Verify the engine supports workspace.find_symbol and retry. If successful, use the returned definition path as the handoff into code.trace_callers or code.trace_flow.",
           details,
         },
       ],
@@ -247,13 +252,13 @@ function buildEngineFailureResponse(
 
 function buildSummary(symbol: string, count: number, truncated: boolean): string {
   if (count === 0) {
-    return `No symbol definitions found for '${symbol}'.`;
+    return `No symbol definitions found for '${symbol}'. If you only need textual mentions, try code.search_text; if you expected a definition, narrow the workspace path, language, or symbol spelling.`;
   }
   if (truncated) {
-    return `Found ${count} symbol definitions for '${symbol}' and returned a truncated subset.`;
+    return `Found ${count} symbol definitions for '${symbol}' and returned a truncated subset. Choose the correct defining path, then hand it to code.trace_callers or code.trace_flow before reading files.`;
   }
   if (count === 1) {
-    return `Found 1 symbol definition for '${symbol}'.`;
+    return `Found 1 symbol definition for '${symbol}'. Use its path as the next step for code.trace_callers or code.trace_flow.`;
   }
-  return `Found ${count} symbol definitions for '${symbol}'.`;
+  return `Found ${count} symbol definitions for '${symbol}'. Select the right definition, then use its path for code.trace_callers or code.trace_flow.`;
 }

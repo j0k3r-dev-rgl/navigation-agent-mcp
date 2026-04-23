@@ -1,7 +1,7 @@
 {
   "name": "@navigation-agent/mcp-server",
   "version": "0.7.0",
-  "description": "MCP server for AI-assisted code navigation — find symbols, trace callers, list endpoints and more.",
+  "description": "Workspace-only MCP server for structural code discovery, symbol lookup, impact analysis, and downstream flow tracing before reading or modifying code.",
   "type": "module",
   "bin": {
     "navigation-mcp": "./dist/bin/navigation-mcp.js"
@@ -46,6 +46,8 @@
     "mcp",
     "ai",
     "code-navigation",
+    "impact-analysis",
+    "call-graph",
     "typescript",
     "rust"
   ]

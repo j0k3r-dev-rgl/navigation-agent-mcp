@@ -105,7 +105,8 @@ function buildSuccessResponse(
             code: "RESULT_TRUNCATED",
             message: "Recursive reverse-trace payload exceeded the response safety caps.",
             retryable: false,
-            suggestion: "Retry with a lower max_depth or disable recursive mode.",
+            suggestion:
+              "Retry with a lower max_depth or disable recursive mode, then read only the highest-impact caller files you still need.",
             details: {
               maxDepth: input.recursive ? resolveMaxDepth(input.max_depth) : null,
             },
@@ -169,7 +170,8 @@ function buildMappedErrorResponse(
           code,
           message,
           retryable,
-          suggestion: "Provide an existing file path inside the workspace root.",
+          suggestion:
+            "Provide an existing file path inside the workspace root. When the defining file is unknown, resolve it with code.find_symbol first.",
           details,
         },
       ],
@@ -188,7 +190,8 @@ function buildMappedErrorResponse(
           code,
           message,
           retryable,
-          suggestion: "Use a file path inside the workspace root.",
+          suggestion:
+            "Use a file path inside the workspace root. If you only know the symbol name, use code.find_symbol to get a valid workspace path first.",
           details,
         },
       ],
@@ -266,18 +269,18 @@ function buildSummary(
   recursive: boolean,
 ): string {
   if (count === 0) {
-    return `Trace completed for incoming callers of '${symbol}' from '${path}' with no callers found.`;
+    return `Trace completed for incoming callers of '${symbol}' from '${path}' with no upstream callers found. Use this when checking whether a change has no discovered workspace impact.`;
   }
   if (recursive) {
     if (count === 1) {
-      return `Found 1 incoming caller for '${symbol}' from '${path}' with recursive reverse trace.`;
+      return `Found 1 upstream caller for '${symbol}' from '${path}' with recursive reverse trace. Use this to inspect impact before renaming or changing the symbol.`;
     }
-    return `Found ${count} incoming callers for '${symbol}' from '${path}' with recursive reverse trace.`;
+    return `Found ${count} upstream callers for '${symbol}' from '${path}' with recursive reverse trace. Use the returned caller tree to assess workspace impact before editing.`;
   }
   if (count === 1) {
-    return `Found 1 incoming caller for '${symbol}' from '${path}'.`;
+    return `Found 1 upstream caller for '${symbol}' from '${path}'. Review that caller before changing the symbol.`;
   }
-  return `Found ${count} incoming callers for '${symbol}' from '${path}'.`;
+  return `Found ${count} upstream callers for '${symbol}' from '${path}'. Use the results for impact analysis before changing the symbol.`;
 }
 
 function resolveMaxDepth(maxDepth: number | null | undefined): number {

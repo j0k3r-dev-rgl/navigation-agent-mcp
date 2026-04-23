@@ -55,7 +55,7 @@ const toolMetadata: Array<
     name: "code.inspect_tree",
     title: "Inspect workspace tree",
     description:
-      "Inspect the workspace file tree without reading file contents. Supports path scoping, depth limits, extension filters, filename globs, and optional stats.",
+      "Inspect the workspace file tree without reading file contents. Use this first to orient inside an unfamiliar area before narrowing to specific files or symbols.",
     inputSchema: { ...codeToolSchemas["code.inspect_tree"] },
     sdkInputSchema: {
       path: z
@@ -99,7 +99,7 @@ const toolMetadata: Array<
     name: "code.list_endpoints",
     title: "List endpoints and routes",
     description:
-      "List backend endpoints and frontend routes in the workspace. Supports path scoping plus language, framework, kind, and limit filters.",
+      "List framework-detectable public routes, REST endpoints, and GraphQL resolvers in the workspace. Best for auditing the exposed route surface or locating likely entrypoints before deeper symbol or flow analysis.",
     inputSchema: { ...codeToolSchemas["code.list_endpoints"] },
     sdkInputSchema: {
       path: z.string().nullable().optional().default(null),
@@ -113,7 +113,7 @@ const toolMetadata: Array<
     name: "code.find_symbol",
     title: "Find symbol definitions",
     description:
-      "Locate symbol definitions in the workspace by name. Supports exact or fuzzy matching, path scoping, and language/framework/kind filtering.",
+      "Locate symbol definitions in the workspace by name. This is the normal first step before code.trace_callers or code.trace_flow when you know the symbol but not its defining file.",
     inputSchema: { ...codeToolSchemas["code.find_symbol"] },
     sdkInputSchema: {
       symbol: z.string().trim().min(1),
@@ -129,7 +129,7 @@ const toolMetadata: Array<
     name: "code.search_text",
     title: "Search text",
     description:
-      "Search text or regex patterns across the workspace with file, language, path, and context controls.",
+      "Search text or regex patterns across the workspace with file, language, path, and context controls. Prefer this for textual usage discovery; prefer code.find_symbol plus trace tools for semantic symbol analysis.",
     inputSchema: { ...codeToolSchemas["code.search_text"] },
     sdkInputSchema: {
       query: z.string().trim().min(1),
@@ -146,7 +146,7 @@ const toolMetadata: Array<
     name: "code.trace_flow",
     title: "Trace execution flow forward",
     description:
-      "Trace execution flow forward from a starting file and symbol to related workspace files. The starting path must exist inside the workspace.",
+      "Trace downstream execution from a known workspace symbol to understand what it calls, what files it reaches, and how a feature flows before you modify logic. Resolve the symbol path with code.find_symbol first.",
     inputSchema: { ...codeToolSchemas["code.trace_flow"] },
     sdkInputSchema: {
       path: z.string().trim().min(1),
@@ -159,7 +159,7 @@ const toolMetadata: Array<
     name: "code.trace_callers",
     title: "Trace incoming callers",
     description:
-      "Trace incoming callers for a symbol from a starting file. Recursive mode supports reverse traversal up to a bounded max_depth and may return a partial response for safety.",
+      "Trace upstream callers of a known workspace symbol for impact analysis before changing, renaming, or removing shared code. Resolve the symbol path with code.find_symbol first; use recursive mode to expand the reverse call chain.",
     inputSchema: { ...codeToolSchemas["code.trace_callers"] },
     sdkInputSchema: {
       path: z.string().trim().min(1),

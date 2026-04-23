@@ -1,0 +1,37 @@
+{
+  "branches": [
+    "main"
+  ],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "node scripts/set-version.mjs ${nextRelease.version} && npm install --package-lock-only",
+        "publishCmd": "node scripts/publish-npm-release.mjs ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "package.json",
+          "package-lock.json",
+          "packages/**/package.json",
+          "crates/navigation-engine/Cargo.toml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
