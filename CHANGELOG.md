@@ -1,3 +1,15 @@
+# [0.8.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.7.1...v0.8.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* **engine:** restore tracing accuracy after dependency upgrades ([a6ba00a](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/a6ba00af4d08fa96e4b9a0e12efbb71c5384738b))
+
+
+### Features
+
+* **csharp:** add trace flow support and runtime validation ([1f85b2b](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/1f85b2b2ab64cddd11386ad1cf1dac070e815049))
+
 ## [0.7.1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.7.0...v0.7.1) (2026-04-23)
 
 
