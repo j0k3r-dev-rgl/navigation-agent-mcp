@@ -18,7 +18,7 @@ The server runs via `npx`.
 ### Claude Code
 
 ```bash
-claude mcp add navigation-agent npx -- -y @navigation-agent/mcp-server
+claude mcp add --transport stdio navigation-agent -- npx -y @navigation-agent/mcp-server
 ```
 
 ### OpenCode
@@ -32,7 +32,8 @@ Add to `~/.config/opencode/opencode.json`:
     "navigation-agent": {
       "type": "local",
       "command": ["npx", "-y", "@navigation-agent/mcp-server"],
-      "enabled": true
+      "enabled": true,
+      "timeout": 30000
     }
   }
 }
@@ -40,18 +41,25 @@ Add to `~/.config/opencode/opencode.json`:
 
 ### Gemini CLI
 
-Add to `~/.gemini/settings.json`:
+```bash
+gemini mcp add navigation-agent npx -- -y @navigation-agent/mcp-server
+```
+
+Or add it manually to `~/.gemini/settings.json` or `.gemini/settings.json`:
 
 ```json
 {
   "mcpServers": {
     "navigation-agent": {
       "command": "npx",
-      "args": ["-y", "@navigation-agent/mcp-server"]
+      "args": ["-y", "@navigation-agent/mcp-server"],
+      "timeout": 30000
     }
   }
 }
 ```
+
+Use the hyphenated server name `navigation-agent`. Avoid underscores in Gemini MCP server names because Gemini derives fully-qualified tool names from the server name.
 
 ### Cursor
 
@@ -80,6 +88,8 @@ Or add to `~/.codex/config.toml`:
 [mcp_servers.navigation-agent]
 command = "npx"
 args = ["-y", "@navigation-agent/mcp-server"]
+startup_timeout_sec = 30
+tool_timeout_sec = 60
 ```
 
 ### Workspace root
@@ -88,29 +98,91 @@ By default the server analyzes the current working directory. To pin a specific 
 
 ---
 
+## Agent usage guide
+
+This server is built for **model-controlled MCP tool use**: agents should discover and invoke its tools before opening source files when the task is about workspace code structure.
+
+It publishes both per-tool descriptions and server instructions so MCP clients can teach the model the workflow without relying on a private skill registry.
+
+### How agents learn to use it
+
+MCP clients give the model guidance through a few standard channels:
+
+| Channel | What this server provides |
+|---|---|
+| MCP `initialize.result.instructions` | A concise workflow: use navigation before reading files, which tool to pick, supported languages/frameworks, and workspace-only limits. |
+| Tool descriptions and input schemas | Each `code.*` tool explains when to use it and lists supported `language` / `framework` filters. |
+| Structured tool results | Every tool returns the stable envelope `tool`, `status`, `summary`, `data`, `errors`, and `meta` so agents can chain outputs safely. |
+| Optional client rules/skills | Clients such as OpenCode, Codex, Cursor, and Gemini can add project rules, but this server does not require a private registry to be useful. |
+
+The important part: the server instructions are part of the MCP handshake, so clients that honor MCP instructions can inject them into the model before tool selection.
+
+`skills/navigation-mcp/SKILL.md` is an optional portable skill template for clients that support skills. It is not required for normal MCP operation; for OpenCode specifically, skills are discovered from `.opencode/skills/<name>/SKILL.md`, global OpenCode skills, or Claude/agents-compatible skill directories.
+
+### Quick path for agents
+
+1. Use `code.inspect_tree` to orient in an unknown module or directory without reading files.
+2. Use `code.find_symbol` when you know a class, function, method, type, enum, or annotation name but not the defining file.
+3. Pass `find_symbol`'s returned `items[].path` into:
+   - `code.trace_callers` for upstream impact: **who calls this?**
+   - `code.trace_flow` for downstream behavior: **what does this call or reach?**
+4. Use `code.list_endpoints` before changing REST, GraphQL, or route surfaces.
+5. Use `code.search_text` for textual patterns, imports, decorators, or when symbol lookup is not enough.
+6. Read only the relevant files returned by the navigation tools.
+
+### Tool naming in clients
+
+The canonical public contract is `code.*`. Some clients expose MCP tools with a server prefix or normalized separators, for example `navigation-agent_code_find_symbol` or `mcp_navigation-agent_code.find_symbol`. Treat those names as aliases of the same canonical tools.
+
+Use `navigation-agent` as the server name in examples. It is readable, avoids collisions, and avoids underscore-related parser issues in clients that derive fully-qualified tool names from the server id.
+
+### Client convention notes
+
+| Client | Convention checked |
+|---|---|
+| Claude Code | Local stdio command uses `claude mcp add --transport stdio <name> -- <command> <args...>`. Server instructions help Claude's MCP tool search decide when to load these tools. |
+| OpenCode | Local MCP servers live under the `mcp` config key with `type: "local"` and `command` as an array. MCP tools are exposed with a server-name prefix, so prompts/rules can say “use `navigation-agent`”. |
+| Gemini CLI | MCP servers live under `mcpServers`; stdio uses `command` + `args`. Gemini appends MCP server instructions to system instructions and assigns names like `mcp_{serverName}_{toolName}`. |
+| Cursor | MCP servers are configured in `mcp.json` with `command` + `args` for stdio or `url` + `headers` for remote servers. |
+| OpenAI Codex | MCP servers live under `[mcp_servers.<name>]` in `config.toml`; `codex mcp add <name> -- <command>` is the CLI form. |
+
+### Supported filters agents should know
+
+- Languages: `typescript`, `javascript`, `go`, `java`, `php`, `python`, `rust`, `csharp`
+- Frameworks: `react-router`, `spring`
+
+Do not use this MCP for web search, external repositories, arbitrary filesystem access, or reading file contents. It is a workspace-only navigation layer.
+
+---
+
 ## Compatibility matrix
 
-This table MUST stay in the README because it is the fastest way to understand the public support surface.
+This table MUST stay in the README because it is the fastest way to understand the public support surface. It is intentionally organized with **languages as rows** and **tools as columns** so adding more languages grows downward instead of widening the table.
 
-| Capability | Java | TypeScript / JavaScript | PHP | Python | Rust | Go | C# | All Files |
-|---|---|---|---|---|---|---|---|---|
-| `code.inspect_tree` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Verified on `examples/csharp` | ✅ |
-| `code.find_symbol` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Verified on `examples/csharp` symbols | — |
-| `code.search_text` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Verified on `examples/csharp` source | ✅ |
-| `code.list_endpoints` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ Stub implementation | — |
-| `code.trace_flow` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Verified end-to-end on `examples/csharp` | — |
-| `code.trace_callers` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Verified end-to-end on `examples/csharp` | — |
+Tool columns omit the `code.` prefix to keep the matrix readable.
+
+| Language | `inspect_tree` | `find_symbol` | `search_text` | `list_endpoints` | `trace_flow` | `trace_callers` |
+|---|---:|---:|---:|---:|---:|---:|
+| Java | ✅ | ✅ | ✅ | ✅ Spring REST/GraphQL | ✅ | ✅ |
+| TypeScript | ✅ | ✅ | ✅ | ✅ React Router | ✅ | ✅ |
+| JavaScript | ✅ | ✅ | ✅ | ✅ React Router | ✅ | ✅ |
+| PHP | ✅ | ✅ | ✅ | ⚠️ Public, not re-verified for endpoints | ✅ | ✅ |
+| Python | ✅ | ✅ | ✅ | ✅ FastAPI/Flask-style decorators | ✅ | ✅ |
+| Rust | ✅ | ✅ | ✅ | ⚠️ Target-dependent / non-web target returned zero | ✅ Qualified symbols | ✅ Qualified symbols |
+| Go | ✅ | ✅ | ✅ | ⚠️ No useful endpoint inventory in current example | ✅ | ✅ |
+| C# | ✅ | ✅ | ✅ | ⚠️ Stub implementation | ✅ | ✅ |
 
 Legend:
 
 - ✅ = verified in a real project during this documentation sync
 - ⚠️ = publicly exposed, but not re-verified in this pass, not meaningful on the chosen validation project, or still has caveats
 - ❌ = not working as public support today
-- — = language-specific parsing not required
+- `code.inspect_tree` and `code.search_text` also work without a language filter across general workspace files.
 
 Important:
 
-- Go is now part of the public contract and works well for symbol lookup, text search, trace flow, and trace callers on the validated example app.
+- Public language filters are `typescript`, `javascript`, `go`, `java`, `php`, `python`, `rust`, and `csharp`.
+- Go, PHP, Python, Rust, Java, TypeScript, JavaScript, and C# are part of the public contract; the matrix above shows current verification level per tool.
 - Rust trace tools work well, but method/impl symbols should be queried with their qualified name (for example `JavaProjectIndex::build`).
 
 ---
@@ -332,6 +404,21 @@ Verified example (Backward Trace):
 - reverse-traced to callers in `UserService`, `OrderService`
 - recursively identifies entrypoints in `app/api/endpoints.py` (`get_user`, `create_order`)
 
+### PHP (`examples/php`)
+
+- `code.inspect_tree` works on PHP project trees
+- `code.find_symbol` works on PHP classes and methods
+- `code.search_text` works on PHP source files
+- `code.trace_flow` works end-to-end for PHP service-to-repository calls
+- `code.trace_callers` works end-to-end for PHP impact analysis
+
+Notes:
+- `code.list_endpoints` is publicly exposed for PHP but was not re-verified for useful endpoint inventory in the current example
+
+Verified example:
+- `src/Service/UserService.php#UserService::persistUser`
+- traced `$this->repository->save($user)` to `src/Repository/MemoryUserRepository.php#save`
+
 ### Rust (this repository)
 
 - `code.inspect_tree` works on real Rust source trees
@@ -377,6 +464,7 @@ Current public language filters:
 - `javascript`
 - `go`
 - `java`
+- `php`
 - `python`
 - `rust`
 - `csharp`

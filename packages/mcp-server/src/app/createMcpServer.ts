@@ -18,9 +18,19 @@ export interface CreateMcpServerOptions {
   engineClient?: EngineClient;
 }
 
+export const NAVIGATION_MCP_INSTRUCTIONS = [
+  "Navigation Agent MCP is a workspace-only structural code navigation server.",
+  "Use it before reading files when a task requires code discovery, symbol lookup, route inventory, impact analysis, or flow tracing.",
+  "Canonical tools are code.inspect_tree, code.find_symbol, code.list_endpoints, code.search_text, code.trace_flow, and code.trace_callers. Some clients may display them with a server prefix; preserve the code.* semantics.",
+  "Supported language filters are typescript, javascript, go, java, php, python, rust, and csharp. Supported framework filters are react-router and spring.",
+  "Workflow: inspect_tree for unknown areas; find_symbol when you know a symbol; pass find_symbol items[].path to trace_callers for upstream impact and trace_flow for downstream execution; list_endpoints for route/API surfaces; search_text only for textual patterns or when semantic lookup is not enough.",
+  "Do not use this server for web search, external repositories, arbitrary filesystem access, or reading file contents. After it narrows scope, read only the returned files that matter.",
+].join(" ");
+
 export interface McpServerPlan {
   name: "navigation-agent-mcp";
   version: "0.1.0";
+  instructions: string;
   workspaceRoot: string;
   tools: RegisteredCodeTool[];
   listTools(): RegisteredCodeTool[];
@@ -83,10 +93,15 @@ export function createMcpServer(
     traceCallersHandler: (payload) => traceCallersService.validateAndExecute(payload),
     traceFlowHandler: (payload) => traceFlowService.validateAndExecute(payload),
   });
-  const sdkServer = new SdkMcpServer({
-    name: "navigation-agent-mcp",
-    version: "0.1.0",
-  });
+  const sdkServer = new SdkMcpServer(
+    {
+      name: "navigation-agent-mcp",
+      version: "0.1.0",
+    },
+    {
+      instructions: NAVIGATION_MCP_INSTRUCTIONS,
+    },
+  );
 
   for (const tool of tools) {
     sdkServer.registerTool(
@@ -103,6 +118,7 @@ export function createMcpServer(
   return {
     name: "navigation-agent-mcp",
     version: "0.1.0",
+    instructions: NAVIGATION_MCP_INSTRUCTIONS,
     workspaceRoot: options.workspaceRoot,
     tools,
     listTools() {

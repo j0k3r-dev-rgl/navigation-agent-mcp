@@ -46,6 +46,9 @@ export interface RegisterCodeToolsOptions {
   ) => Promise<ResponseEnvelope<unknown>>;
 }
 
+const SUPPORTED_LANGUAGE_FILTERS = PUBLIC_LANGUAGES.join(", ");
+const SUPPORTED_FRAMEWORK_FILTERS = PUBLIC_FRAMEWORKS.join(", ");
+
 const toolMetadata: Array<
   Omit<RegisteredCodeTool, "execute"> & {
     inputSchema: Record<string, unknown>;
@@ -55,7 +58,7 @@ const toolMetadata: Array<
     name: "code.inspect_tree",
     title: "Inspect workspace tree",
     description:
-      "Inspect the workspace file tree without reading file contents. Use this first to orient inside an unfamiliar area before narrowing to specific files or symbols.",
+      "Inspect the workspace file tree without reading file contents. Use this first to orient in an unfamiliar area, then narrow with code.find_symbol, code.list_endpoints, or code.search_text before reading files.",
     inputSchema: { ...codeToolSchemas["code.inspect_tree"] },
     sdkInputSchema: {
       path: z
@@ -98,8 +101,7 @@ const toolMetadata: Array<
   {
     name: "code.list_endpoints",
     title: "List endpoints and routes",
-    description:
-      "List framework-detectable public routes, REST endpoints, and GraphQL resolvers in the workspace. Best for auditing the exposed route surface or locating likely entrypoints before deeper symbol or flow analysis.",
+    description: `List framework-detectable public routes, REST endpoints, and GraphQL resolvers in the workspace. Use before changing API surfaces. Language filters: ${SUPPORTED_LANGUAGE_FILTERS}. Framework filters: ${SUPPORTED_FRAMEWORK_FILTERS}.`,
     inputSchema: { ...codeToolSchemas["code.list_endpoints"] },
     sdkInputSchema: {
       path: z.string().nullable().optional().default(null),
@@ -112,8 +114,7 @@ const toolMetadata: Array<
   {
     name: "code.find_symbol",
     title: "Find symbol definitions",
-    description:
-      "Locate symbol definitions in the workspace by name. This is the normal first step before code.trace_callers or code.trace_flow when you know the symbol but not its defining file.",
+    description: `Locate symbol definitions in the workspace by name. This is the normal first step before code.trace_callers or code.trace_flow when the defining file is unknown. Language filters: ${SUPPORTED_LANGUAGE_FILTERS}.`,
     inputSchema: { ...codeToolSchemas["code.find_symbol"] },
     sdkInputSchema: {
       symbol: z.string().trim().min(1),
@@ -128,8 +129,7 @@ const toolMetadata: Array<
   {
     name: "code.search_text",
     title: "Search text",
-    description:
-      "Search text or regex patterns across the workspace with file, language, path, and context controls. Prefer this for textual usage discovery; prefer code.find_symbol plus trace tools for semantic symbol analysis.",
+    description: `Search text or regex patterns across the workspace when semantic symbol lookup is not enough. Prefer code.find_symbol plus trace tools for symbols; read only returned top files. Language filters: ${SUPPORTED_LANGUAGE_FILTERS}.`,
     inputSchema: { ...codeToolSchemas["code.search_text"] },
     sdkInputSchema: {
       query: z.string().trim().min(1),
@@ -145,8 +145,7 @@ const toolMetadata: Array<
   {
     name: "code.trace_flow",
     title: "Trace execution flow forward",
-    description:
-      "Trace downstream execution from a known workspace symbol to understand what it calls, what files it reaches, and how a feature flows before you modify logic. Resolve the symbol path with code.find_symbol first.",
+    description: `Trace downstream execution from a known workspace symbol to see what it calls and which files it reaches before modifying logic. Resolve path with code.find_symbol first. Language filters: ${SUPPORTED_LANGUAGE_FILTERS}.`,
     inputSchema: { ...codeToolSchemas["code.trace_flow"] },
     sdkInputSchema: {
       path: z.string().trim().min(1),
@@ -158,8 +157,7 @@ const toolMetadata: Array<
   {
     name: "code.trace_callers",
     title: "Trace incoming callers",
-    description:
-      "Trace upstream callers of a known workspace symbol for impact analysis before changing, renaming, or removing shared code. Resolve the symbol path with code.find_symbol first; use recursive mode to expand the reverse call chain.",
+    description: `Trace upstream callers of a known workspace symbol for impact analysis before changing, renaming, or removing shared code. Resolve path with code.find_symbol first; use recursive mode for shared APIs. Language filters: ${SUPPORTED_LANGUAGE_FILTERS}.`,
     inputSchema: { ...codeToolSchemas["code.trace_callers"] },
     sdkInputSchema: {
       path: z.string().trim().min(1),

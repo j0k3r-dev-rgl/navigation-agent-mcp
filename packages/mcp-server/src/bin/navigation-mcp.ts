@@ -22,6 +22,7 @@ if (argv.includes("--describe-tools")) {
       {
         name: server.name,
         version: server.version,
+        instructions: server.instructions,
         workspaceRoot: server.workspaceRoot,
         toolCount: server.tools.length,
         tools: server.listTools().map(({ execute, sdkInputSchema, ...tool }) => tool),
