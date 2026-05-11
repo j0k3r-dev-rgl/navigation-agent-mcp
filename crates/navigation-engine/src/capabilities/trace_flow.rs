@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use crate::analyzers::types::FindCalleesQuery;
+use crate::analyzers::types::{infer_public_language, FindCalleesQuery};
 use crate::analyzers::AnalyzerLanguage;
 use crate::analyzers::AnalyzerRegistry;
 use crate::error::EngineError;
@@ -12,6 +12,7 @@ use crate::workspace::{
     canonicalize_workspace_root, contains_hard_ignored_segment, public_path, resolve_scope,
 };
 use tree_sitter::{Node, Parser};
+use crate::tree_sitter_ext::NodeExt;
 
 use super::find_symbol::find_symbol;
 
@@ -143,12 +144,12 @@ impl JavaProjectIndex {
 
         // Extract package
         for index in 0..root.named_child_count() {
-            if let Some(child) = root.named_child(index) {
+            if let Some(child) = root.named_child_at(index) {
                 match child.kind() {
                     "package_declaration" => {
                         // Look for scoped_identifier child which contains the package name
                         for p_index in 0..child.named_child_count() {
-                            if let Some(pkg_child) = child.named_child(p_index) {
+                            if let Some(pkg_child) = child.named_child_at(p_index) {
                                 if pkg_child.kind() == "scoped_identifier"
                                     || pkg_child.kind() == "identifier"
                                 {
@@ -249,12 +250,12 @@ impl JavaProjectIndex {
         // tree-sitter-java: class_declaration has children including type_list for implements
 
         for i in 0..class_node.child_count() {
-            if let Some(child) = class_node.child(i) {
+            if let Some(child) = class_node.child_at(i) {
                 if child.kind() == "super_interfaces" {
                     // super_interfaces contains the implemented interfaces
                     // It can contain type_list (for multiple interfaces) or a single type
                     for j in 0..child.named_child_count() {
-                        if let Some(type_node) = child.named_child(j) {
+                        if let Some(type_node) = child.named_child_at(j) {
                             match type_node.kind() {
                                 "type_identifier" | "scoped_type_identifier" => {
                                     if let Some(type_name) = java_node_text(&type_node, source) {
@@ -265,7 +266,7 @@ impl JavaProjectIndex {
                                 "type_list" => {
                                     // Multiple interfaces: type_list contains type_identifiers
                                     for k in 0..type_node.named_child_count() {
-                                        if let Some(inner) = type_node.named_child(k) {
+                                        if let Some(inner) = type_node.named_child_at(k) {
                                             if let Some(type_name) = java_node_text(&inner, source)
                                             {
                                                 let fq_name =
@@ -756,8 +757,9 @@ fn resolve_callee_targets(
     let mut interface_target = None;
     let mut implementation_targets = Vec::new();
     let mut direct_targets = Vec::new();
+    let effective_language = effective_analyzer_language_for_file(analyzer_language, current_file);
 
-    if analyzer_language == AnalyzerLanguage::Java {
+    if effective_language == AnalyzerLanguage::Java {
         if let (Some(index), Some(receiver_type)) = (java_index, &callee.receiver_type) {
             let clean_type = receiver_type
                 .split('<')
@@ -845,12 +847,17 @@ fn resolve_callee_targets(
             path: candidate_path,
             symbol: callee.callee.clone(),
         });
-    } else if analyzer_language == AnalyzerLanguage::Go
-        || analyzer_language == AnalyzerLanguage::Python
+    }
+
+    if direct_targets.is_empty()
+        && (effective_language == AnalyzerLanguage::Go
+            || effective_language == AnalyzerLanguage::Python
+            || effective_language == AnalyzerLanguage::Java
+            || effective_language == AnalyzerLanguage::Php)
     {
-        // For dynamic/loosely typed languages, try global resolution as a fallback
+        // Try global resolution as a fallback when in-file/scoped resolution misses.
         if let Some(global_match) =
-            resolve_symbol_globally(workspace_root, &callee.callee, analyzer_language)?
+            resolve_symbol_globally(workspace_root, &callee.callee, effective_language)?
         {
             direct_targets.push(global_match);
         }
@@ -861,6 +868,26 @@ fn resolve_callee_targets(
         implementation_targets,
         direct_targets,
     })
+}
+
+fn effective_analyzer_language_for_file(
+    analyzer_language: AnalyzerLanguage,
+    file_path: &std::path::Path,
+) -> AnalyzerLanguage {
+    if analyzer_language != AnalyzerLanguage::Auto {
+        return analyzer_language;
+    }
+
+    match infer_public_language(file_path).as_deref() {
+        Some("go") => AnalyzerLanguage::Go,
+        Some("java") => AnalyzerLanguage::Java,
+        Some("csharp") => AnalyzerLanguage::Csharp,
+        Some("php") => AnalyzerLanguage::Php,
+        Some("python") => AnalyzerLanguage::Python,
+        Some("rust") => AnalyzerLanguage::Rust,
+        Some("typescript") | Some("javascript") => AnalyzerLanguage::Typescript,
+        _ => AnalyzerLanguage::Auto,
+    }
 }
 
 fn resolve_symbol_globally(
@@ -1129,6 +1156,7 @@ fn parse_analyzer_language(value: &str) -> Result<AnalyzerLanguage, EngineError>
         "go" => Ok(AnalyzerLanguage::Go),
         "java" => Ok(AnalyzerLanguage::Java),
         "csharp" => Ok(AnalyzerLanguage::Csharp),
+        "php" => Ok(AnalyzerLanguage::Php),
         "python" => Ok(AnalyzerLanguage::Python),
         "rust" => Ok(AnalyzerLanguage::Rust),
         "typescript" => Ok(AnalyzerLanguage::Typescript),

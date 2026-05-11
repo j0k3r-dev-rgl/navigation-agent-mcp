@@ -51,7 +51,7 @@ test("stdio runtime returns migrated search_text responses through the Rust engi
     assert.equal(response.result.status, "partial");
     assert.equal(
       response.result.summary,
-      "Found 3 text matches across 2 files for 'loader' and returned a truncated subset.",
+      "Found 3 text matches across 2 files for 'loader' and returned a truncated subset. Use topFiles to prioritize reads, or switch to code.find_symbol plus trace tools when you need semantic analysis.",
     );
     assert.deepEqual(response.result.data, {
       fileCount: 1,
@@ -126,7 +126,10 @@ test("stdio runtime returns migrated search_text responses through the Rust engi
     assert.equal(response.ok, true);
     assert.equal(response.result.tool, "code.search_text");
     assert.equal(response.result.status, "ok");
-    assert.equal(response.result.summary, "Found 1 text match in 1 file for 'ExampleService'.");
+    assert.equal(
+      response.result.summary,
+      "Found 1 text match in 1 file for 'ExampleService'. Read that file if needed, but prefer code.find_symbol when the goal is tracing a defined symbol.",
+    );
     assert.equal(response.result.meta.detection.effectiveLanguage, "java");
     assert.equal(response.result.meta.detection.framework, "spring");
     assert.equal(response.result.data.items[0].language, "java");

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{
     infer_public_language, normalize_public_endpoint_kind, EndpointDefinition, FindEndpointsQuery,
 };
@@ -64,7 +65,7 @@ fn collect_endpoints(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_endpoints(child, source, public_language, endpoints);
         }
     }
@@ -89,7 +90,7 @@ fn extract_decorator_endpoints(
     };
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() == "decorator" {
@@ -112,7 +113,7 @@ fn extract_decorator_endpoints(
 
 fn find_function_definition(node: Node) -> Option<Node> {
     for index in 0..node.named_child_count() {
-        let child = node.named_child(index)?;
+        let child = node.named_child_at(index)?;
         if matches!(
             child.kind(),
             "function_definition" | "async_function_definition"
@@ -125,7 +126,7 @@ fn find_function_definition(node: Node) -> Option<Node> {
 
 fn extract_decorator_info(node: Node, source: &[u8]) -> Option<(String, String)> {
     for index in 0..node.named_child_count() {
-        let child = node.named_child(index)?;
+        let child = node.named_child_at(index)?;
         match child.kind() {
             "call" => {
                 let function = child.child_by_field_name("function")?;
@@ -171,7 +172,7 @@ fn extract_first_string_argument(call_node: &Node, source: &[u8]) -> Option<Stri
     let args = call_node.child_by_field_name("arguments")?;
 
     for index in 0..args.named_child_count() {
-        let arg = args.named_child(index)?;
+        let arg = args.named_child_at(index)?;
         if arg.kind() == "string" {
             return extract_string_value(&arg, source);
         }
@@ -186,7 +187,7 @@ fn extract_string_value(node: &Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..node.named_child_count() {
-        let child = node.named_child(index)?;
+        let child = node.named_child_at(index)?;
         if child.kind() == "string_fragment" {
             return node_text(child, source);
         }
@@ -236,7 +237,7 @@ fn extract_nth_string_argument(args: &Node, source: &[u8], n: usize) -> Option<S
     let mut string_count = 0;
 
     for index in 0..args.named_child_count() {
-        let arg = args.named_child(index)?;
+        let arg = args.named_child_at(index)?;
         if arg.kind() == "string" {
             if string_count == n {
                 return extract_string_value(&arg, source);
@@ -252,7 +253,7 @@ fn extract_view_name(args: &Node, source: &[u8]) -> Option<String> {
     let mut arg_index = 0;
 
     for index in 0..args.named_child_count() {
-        let arg = args.named_child(index)?;
+        let arg = args.named_child_at(index)?;
         if arg.kind() == "string" {
             arg_index += 1;
             continue;

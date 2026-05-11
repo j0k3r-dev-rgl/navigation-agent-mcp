@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use tree_sitter::Parser;
+use navigation_engine::tree_sitter_ext::NodeExt;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -68,7 +69,7 @@ fn find_smallest_containing<'a>(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             if let Some(found) = find_smallest_containing(child, source, needle) {
                 return Some(found);
             }
@@ -120,7 +121,7 @@ fn print_node(node: tree_sitter::Node<'_>, source: &[u8], depth: usize, max_dept
     );
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             print_node(child, source, depth + 1, max_depth);
         }
     }

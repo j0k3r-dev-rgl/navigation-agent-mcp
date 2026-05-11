@@ -3,6 +3,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::{find_workspace_root, node_text, parser_language_for_path};
 
@@ -198,6 +200,10 @@ fn resolve_import_path(
         return Some(canonical.to_string_lossy().to_string());
     }
 
+    if let Some(swapped) = resolve_source_sibling_for_runtime_extension(&resolved) {
+        return Some(swapped);
+    }
+
     let path_str = resolved.to_string_lossy();
     for ext in &[".ts", ".tsx", ".js", ".jsx"] {
         let path_with_ext = std::path::PathBuf::from(format!("{}{}", path_str, ext));
@@ -253,6 +259,24 @@ fn resolve_path_alias(
     None
 }
 
+fn resolve_source_sibling_for_runtime_extension(path: &Path) -> Option<String> {
+    let extension = path.extension().and_then(|value| value.to_str())?;
+    let candidates: &[&str] = match extension {
+        "js" => &["ts", "tsx"],
+        "jsx" => &["tsx", "ts"],
+        "ts" => &["js", "jsx"],
+        "tsx" => &["jsx", "js"],
+        _ => &[],
+    };
+
+    candidates.iter().find_map(|candidate_ext| {
+        path.with_extension(candidate_ext)
+            .canonicalize()
+            .ok()
+            .map(|canonical| canonical.to_string_lossy().to_string())
+    })
+}
+
 fn extract_typescript_imports(
     root: Node,
     source: &[u8],
@@ -264,7 +288,7 @@ fn extract_typescript_imports(
     let mut imports = HashMap::new();
 
     for index in 0..root.named_child_count() {
-        if let Some(child) = root.named_child(index) {
+        if let Some(child) = root.named_child_at(index) {
             match child.kind() {
                 "import_statement" | "import_declaration" => {
                     extract_import_declaration(
@@ -300,7 +324,7 @@ fn extract_local_definitions(root: Node, source: &[u8]) -> std::collections::Has
     let mut definitions = std::collections::HashSet::new();
 
     for index in 0..root.named_child_count() {
-        if let Some(child) = root.named_child(index) {
+        if let Some(child) = root.named_child_at(index) {
             extract_definitions_from_node(child, source, &mut definitions);
         }
     }
@@ -336,7 +360,7 @@ fn extract_definitions_from_node(
         }
         "export_statement" | "export_declaration" => {
             for index in 0..node.named_child_count() {
-                if let Some(child) = node.named_child(index) {
+                if let Some(child) = node.named_child_at(index) {
                     match child.kind() {
                         "function_declaration"
                         | "class_declaration"
@@ -362,7 +386,7 @@ fn extract_definitions_from_node(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             extract_definitions_from_node(child, source, definitions);
         }
     }
@@ -374,7 +398,7 @@ fn extract_variable_names(
     definitions: &mut std::collections::HashSet<String>,
 ) {
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             if child.kind() == "variable_declarator" {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     extract_names_from_pattern(name_node, source, definitions);
@@ -397,7 +421,7 @@ fn extract_names_from_pattern(
         }
         "object_pattern" => {
             for index in 0..node.named_child_count() {
-                if let Some(child) = node.named_child(index) {
+                if let Some(child) = node.named_child_at(index) {
                     if child.kind() == "shorthand_property_identifier_pattern"
                         || child.kind() == "identifier"
                     {
@@ -414,7 +438,7 @@ fn extract_names_from_pattern(
         }
         "array_pattern" => {
             for index in 0..node.named_child_count() {
-                if let Some(child) = node.named_child(index) {
+                if let Some(child) = node.named_child_at(index) {
                     extract_names_from_pattern(child, source, definitions);
                 }
             }
@@ -436,7 +460,7 @@ fn extract_import_declaration(
     let mut source_path = None;
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             match child.kind() {
                 "import_clause" => {
                     import_clause = Some(child);
@@ -500,11 +524,11 @@ fn extract_import_specifiers(
     imports: &mut HashMap<String, ResolvedImport>,
 ) {
     for index in 0..clause.named_child_count() {
-        if let Some(child) = clause.named_child(index) {
+        if let Some(child) = clause.named_child_at(index) {
             match child.kind() {
                 "named_imports" => {
                     for i in 0..child.named_child_count() {
-                        if let Some(spec) = child.named_child(i) {
+                        if let Some(spec) = child.named_child_at(i) {
                             if spec.kind() == "import_specifier" {
                                 extract_single_import_specifier(spec, source, import_kind, imports);
                             }
@@ -541,7 +565,7 @@ fn extract_single_import_specifier(
     let mut local_name = None;
 
     for i in 0..spec.named_child_count() {
-        if let Some(spec_child) = spec.named_child(i) {
+        if let Some(spec_child) = spec.named_child_at(i) {
             if spec_child.kind() == "identifier" && local_name.is_none() {
                 local_name = node_text(spec_child, source);
             }
@@ -675,7 +699,7 @@ fn collect_callees(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_callees(child, source, next_function.clone(), ctx, callees);
         }
     }
@@ -796,7 +820,7 @@ fn find_exported_destructured_symbol_path(current_file: &Path, symbol: &str) -> 
 
 fn has_exported_destructured_symbol(root: Node, source: &[u8], symbol: &str) -> bool {
     for index in 0..root.named_child_count() {
-        let Some(child) = root.named_child(index) else {
+        let Some(child) = root.named_child_at(index) else {
             continue;
         };
 
@@ -814,7 +838,7 @@ fn has_exported_destructured_symbol(root: Node, source: &[u8], symbol: &str) -> 
 
 fn exported_destructured_symbol_in_node(node: Node, source: &[u8], symbol: &str) -> bool {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
 
@@ -842,7 +866,7 @@ fn exported_destructured_symbol_in_node(node: Node, source: &[u8], symbol: &str)
 
 fn destructured_symbol_in_declaration(node: Node, source: &[u8], symbol: &str) -> bool {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() == "variable_declarator"
@@ -879,7 +903,7 @@ fn object_pattern_contains_symbol(node: Node, source: &[u8], symbol: &str) -> bo
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             if object_pattern_contains_symbol(child, source, symbol) {
                 return true;
             }

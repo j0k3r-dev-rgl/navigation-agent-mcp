@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{
     infer_public_language, normalize_public_endpoint_kind, EndpointDefinition, FindEndpointsQuery,
 };
@@ -59,7 +60,7 @@ fn collect_source_file_endpoints(
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
 
@@ -109,7 +110,7 @@ fn extract_graphql_endpoints(
 
     let mut endpoints = Vec::new();
     for index in 0..body.named_child_count() {
-        let Some(child) = body.named_child(index) else {
+        let Some(child) = body.named_child_at(index) else {
             continue;
         };
         if child.kind() != "function_item" {

@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{
     infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
     FindCallersQuery,
@@ -99,7 +101,7 @@ fn collect_import_aliases(
     };
 
     for i in 0..root.named_child_count() {
-        let Some(child) = root.named_child(i) else {
+        let Some(child) = root.named_child_at(i) else {
             continue;
         };
         if child.kind() != "import_statement" {
@@ -123,7 +125,7 @@ fn collect_import_aliases(
         }
 
         for j in 0..child.named_child_count() {
-            let Some(named) = child.named_child(j) else {
+            let Some(named) = child.named_child_at(j) else {
                 continue;
             };
             match named.kind() {
@@ -149,7 +151,7 @@ fn collect_from_import_clause(
     aliases: &mut ImportAliases,
 ) {
     for i in 0..node.named_child_count() {
-        let Some(child) = node.named_child(i) else {
+        let Some(child) = node.named_child_at(i) else {
             continue;
         };
         match child.kind() {
@@ -165,7 +167,7 @@ fn collect_from_import_clause(
             }
             "named_imports" => {
                 for j in 0..child.named_child_count() {
-                    let Some(specifier) = child.named_child(j) else {
+                    let Some(specifier) = child.named_child_at(j) else {
                         continue;
                     };
                     if specifier.kind() != "import_specifier" {
@@ -227,9 +229,7 @@ fn import_matches_target(
             let candidate_path = workspace_root.join(candidate_dir).join(remainder);
 
             if has_extension {
-                if candidate_path.exists()
-                    && normalize_path(&candidate_path) == normalize_path(target_path)
-                {
+                if import_matches_candidates(&candidate_path, target_path) {
                     return true;
                 }
             } else if candidate_path.exists()
@@ -252,10 +252,6 @@ fn import_matches_target(
         normalize_path(&workspace_root.join(import_source))
     };
     let target = normalize_path(target_path);
-    if import_path == target {
-        return true;
-    }
-
     import_matches_candidates(&import_path, &target)
 }
 
@@ -266,6 +262,19 @@ fn import_matches_candidates(import_path: &Path, target_path: &Path) -> bool {
     }
 
     let mut candidates = vec![import_path.to_path_buf()];
+    if let Some(extension) = import_path.extension().and_then(|value| value.to_str()) {
+        match extension {
+            "js" | "jsx" => {
+                candidates.push(import_path.with_extension("ts"));
+                candidates.push(import_path.with_extension("tsx"));
+            }
+            "ts" | "tsx" => {
+                candidates.push(import_path.with_extension("js"));
+                candidates.push(import_path.with_extension("jsx"));
+            }
+            _ => {}
+        }
+    }
     for extension in ["ts", "tsx", "js", "jsx"] {
         candidates.push(PathBuf::from(format!(
             "{}.{}",
@@ -311,7 +320,7 @@ fn walk_for_callers(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             walk_for_callers(child, source, next_context.clone(), ctx, callers);
         }
     }
@@ -324,6 +333,15 @@ fn derive_function_context(
     ctx: &CallerContext,
 ) -> Option<FunctionContext> {
     match node.kind() {
+        "program" if inherited.is_none() => Some(FunctionContext {
+            caller: "<module>".to_string(),
+            caller_symbol: None,
+            probable_entry_point_reasons: vec!["module top-level".to_string()],
+            caller_range: CallerRange {
+                start_line: (node.start_position().row + 1) as u32,
+                end_line: (node.end_position().row + 1) as u32,
+            },
+        }),
         "function_declaration" | "generator_function_declaration" => {
             let name = node
                 .child_by_field_name("name")

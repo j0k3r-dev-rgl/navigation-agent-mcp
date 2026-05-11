@@ -1,14 +1,8 @@
-mod analyzers;
-mod capabilities;
-mod error;
-mod protocol;
-mod workspace;
-
 use std::io::{self, BufRead, Write};
 
-use capabilities::dispatch;
-use error::EngineError;
-use protocol::{EngineRequest, EngineResponse};
+use navigation_engine::capabilities::dispatch;
+use navigation_engine::error::EngineError;
+use navigation_engine::protocol::{EngineRequest, EngineResponse};
 
 fn main() {
     let stdin = io::stdin();

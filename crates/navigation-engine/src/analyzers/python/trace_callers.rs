@@ -2,6 +2,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{
     infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
     FindCallersQuery,
@@ -96,7 +98,7 @@ fn collect_python_callers(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_python_callers(child, source, next_function.clone(), ctx, callers);
         }
     }

@@ -2,6 +2,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::node_text;
 
@@ -81,7 +83,7 @@ fn collect_python_callees(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_python_callees(child, source, next_function.clone(), ctx, callees);
         }
     }

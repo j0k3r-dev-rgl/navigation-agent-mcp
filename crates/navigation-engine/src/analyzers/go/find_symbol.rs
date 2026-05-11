@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{infer_public_language, FindSymbolQuery, SymbolDefinition};
 use super::common::{go_symbol_matches_target, node_text, simplify_go_type_name};
 
@@ -62,7 +63,7 @@ fn collect_symbols(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_symbols(child, source, public_language, symbols);
         }
     }
@@ -75,7 +76,7 @@ fn function_symbol(
 ) -> Option<SymbolDefinition> {
     let name_node = node.child_by_field_name("name").or_else(|| {
         (0..node.named_child_count())
-            .filter_map(|index| node.named_child(index))
+            .filter_map(|index| node.named_child_at(index))
             .find(|child| child.kind() == "identifier")
     })?;
     Some(SymbolDefinition {
@@ -95,13 +96,13 @@ fn method_symbol(
 ) -> Option<SymbolDefinition> {
     let name_node = node.child_by_field_name("name").or_else(|| {
         (0..node.named_child_count())
-            .filter_map(|index| node.named_child(index))
+            .filter_map(|index| node.named_child_at(index))
             .find(|child| child.kind() == "field_identifier")
     })?;
     let method_name = node_text(name_node, source)?;
     let receiver = node.child_by_field_name("receiver").or_else(|| {
         (0..node.named_child_count())
-            .filter_map(|index| node.named_child(index))
+            .filter_map(|index| node.named_child_at(index))
             .find(|child| child.kind() == "parameter_list")
     })?;
     let owner = extract_receiver_type(receiver, source)?;
@@ -123,24 +124,24 @@ fn collect_type_declaration_symbols(
     symbols: &mut Vec<SymbolDefinition>,
 ) {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if !matches!(child.kind(), "type_spec" | "type_alias") {
             continue;
         }
         let Some(name_node) = (0..child.named_child_count())
-            .filter_map(|inner| child.named_child(inner))
+            .filter_map(|inner| child.named_child_at(inner))
             .find(|candidate| candidate.kind() == "type_identifier")
         else {
             continue;
         };
         let type_node = if child.kind() == "type_alias" {
-            child.named_child(1)
+            child.named_child_at(1)
         } else {
             child.child_by_field_name("type").or_else(|| {
                 (0..child.named_child_count())
-                    .filter_map(|inner| child.named_child(inner))
+                    .filter_map(|inner| child.named_child_at(inner))
                     .find(|candidate| candidate.kind() != "type_identifier")
             })
         };
@@ -168,10 +169,10 @@ fn collect_type_declaration_symbols(
 
 fn extract_receiver_type(receiver: Node, source: &[u8]) -> Option<String> {
     for index in 0..receiver.named_child_count() {
-        let child = receiver.named_child(index)?;
+        let child = receiver.named_child_at(index)?;
         if child.kind() == "parameter_declaration" {
             for inner in 0..child.named_child_count() {
-                let candidate = child.named_child(inner)?;
+                let candidate = child.named_child_at(inner)?;
                 if matches!(
                     candidate.kind(),
                     "type_identifier" | "qualified_type" | "pointer_type"

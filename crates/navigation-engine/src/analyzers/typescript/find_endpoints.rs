@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{
     infer_public_language, normalize_public_endpoint_kind, EndpointDefinition, FindEndpointsQuery,
 };
@@ -61,7 +62,7 @@ fn collect_endpoints(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_endpoints(
                 child,
                 source,
@@ -113,7 +114,7 @@ fn extract_endpoint(
                 }
                 "lexical_declaration" => {
                     for i in 0..declaration.named_child_count() {
-                        if let Some(child) = declaration.named_child(i) {
+                        if let Some(child) = declaration.named_child_at(i) {
                             if child.kind() == "variable_declarator" {
                                 return extract_endpoint(
                                     child,

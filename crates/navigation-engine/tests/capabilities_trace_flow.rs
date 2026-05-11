@@ -58,6 +58,48 @@ fn traces_callees_from_the_entrypoint_symbol() {
 }
 
 #[test]
+fn traces_typescript_imported_and_local_calls_with_js_import_specifier() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("app")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("tools")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("app/createMcpServer.ts"),
+        "import { registerCodeTools } from '../tools/registerCodeTools.js';\nfunction toSdkToolResult() { return {}; }\nexport function createMcpServer() {\n  registerCodeTools();\n  return toSdkToolResult();\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("tools/registerCodeTools.ts"),
+        "export function registerCodeTools() {\n  return [];\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "app/createMcpServer.ts".to_string(),
+            symbol: "createMcpServer".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: None,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+    assert!(names.contains(&"registerCodeTools"), "names were: {names:?}");
+    assert!(names.contains(&"toSdkToolResult"), "names were: {names:?}");
+
+    let imported = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "registerCodeTools")
+        .expect("expected imported callee");
+    assert_eq!(imported.path, "tools/registerCodeTools.ts");
+}
+
+#[test]
 fn returns_empty_result_when_the_symbol_has_no_callees() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("src/routes")).unwrap();
@@ -127,6 +169,84 @@ public class Factorial {
         .find(|child| child.symbol.ends_with("factorial"))
         .expect("expected recursive factorial child");
     assert!(recursive_child.callers.is_empty());
+}
+
+#[test]
+fn traces_all_java_calls_in_controller_method_including_jwt_service() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("src/main/java/com/example")).unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("src/main/java/com/example/TitularRestController.java"),
+        r#"
+package com.example;
+
+public class TitularRestController {
+    private JwtService jwtService;
+    private EditTitularPort editTitularPort;
+
+    public void editTitular(String token, Object request) {
+        String titularId = jwtService.getIdFromClaims(token);
+        editTitularPort.editTitular(titularId, request);
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/main/java/com/example/JwtService.java"),
+        r#"
+package com.example;
+
+public class JwtService {
+    public String getIdFromClaims(String token) {
+        return token;
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace.path().join("src/main/java/com/example/EditTitularPort.java"),
+        r#"
+package com.example;
+
+public interface EditTitularPort {
+    void editTitular(String titularId, Object request);
+}
+"#,
+    )
+    .unwrap();
+
+    let result = trace_flow(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceFlowRequestPayload {
+            path: "src/main/java/com/example/TitularRestController.java".to_string(),
+            symbol: "editTitular".to_string(),
+            analyzer_language: "java".to_string(),
+            public_language_filter: None,
+            max_depth: Some(4),
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let names: Vec<_> = root.callers.iter().map(|n| n.symbol.as_str()).collect();
+
+    assert!(
+        names.iter().any(|name| name.ends_with("JwtService#getIdFromClaims")),
+        "names were: {names:?}"
+    );
+    assert!(
+        names
+            .iter()
+            .any(|name| name.ends_with("EditTitularPort#editTitular")),
+        "names were: {names:?}"
+    );
 }
 
 #[test]
@@ -609,6 +729,39 @@ fn traces_go_handler_flow_across_service_calls() {
         "names were: {names:?}"
     );
     assert!(names.contains(&"writeJSON"), "names were: {names:?}");
+}
+
+#[test]
+fn traces_php_member_call_to_repository_definition_instead_of_callsite() {
+    let result = trace_flow(
+        "/home/j0k3r/navigation-agent-mcp",
+        TraceFlowRequestPayload {
+            path: "examples/php/src/Service/UserService.php".to_string(),
+            symbol: "persistUser".to_string(),
+            analyzer_language: "auto".to_string(),
+            public_language_filter: Some("php".to_string()),
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    let root = result.root.expect("expected root node");
+    let save_call = root
+        .callers
+        .iter()
+        .find(|c| c.symbol == "save")
+        .expect("expected save child");
+
+    assert_ne!(
+        save_call.path, "examples/php/src/Service/UserService.php",
+        "trace_flow should resolve save to its definition, not keep the callsite path"
+    );
+    assert!(
+        save_call.path == "examples/php/src/Repository/UserRepository.php"
+            || save_call.path == "examples/php/src/Repository/MemoryUserRepository.php",
+        "unexpected save path: {}",
+        save_call.path
+    );
 }
 
 #[test]

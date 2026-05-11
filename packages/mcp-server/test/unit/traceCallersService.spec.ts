@@ -75,7 +75,7 @@ test("traceCallersService shapes requests for the engine and preserves the publi
   assert.equal(result.status, "ok");
   assert.equal(
     result.summary,
-    "Found 1 incoming caller for 'loader' from 'src/routes/dashboard.tsx' with recursive reverse trace.",
+    "Found 1 upstream caller for 'loader' from 'src/routes/dashboard.tsx' with recursive reverse trace. Use this to inspect impact before renaming or changing the symbol.",
   );
   assert.equal(result.data.count, 1);
   assert.equal(result.data.items[0]?.callerSymbol, "Layout");

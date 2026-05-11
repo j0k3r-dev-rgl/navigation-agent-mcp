@@ -2,6 +2,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::{
     extract_go_file_context, extract_go_function_context_with_file_context, go_module_name,
@@ -94,7 +96,7 @@ fn collect_go_callees(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_go_callees(child, source, next_function.clone(), ctx, callees);
         }
     }
@@ -108,7 +110,7 @@ fn extract_go_callee(
 ) -> Option<CalleeDefinition> {
     let function = node
         .child_by_field_name("function")
-        .or_else(|| node.named_child(0))?;
+        .or_else(|| node.named_child_at(0))?;
     let resolved = resolve_go_call_target(
         function,
         source,

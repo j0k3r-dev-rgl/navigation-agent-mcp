@@ -78,7 +78,10 @@ test("traceFlowService shapes requests for the engine and preserves the public e
     },
   ]);
   assert.equal(result.status, "ok");
-  assert.equal(result.summary, "Traced 1 callee for 'loader' from 'src/routes/dashboard.tsx'.");
+  assert.equal(
+    result.summary,
+    "Traced 1 downstream callee for 'loader' from 'src/routes/dashboard.tsx'. Read the traced file only if you need implementation details before changing logic.",
+  );
   assert.deepEqual(result.data.entrypoint, {
     path: "src/routes/dashboard.tsx",
     symbol: "loader",

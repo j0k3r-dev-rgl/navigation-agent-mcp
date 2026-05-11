@@ -146,7 +146,7 @@ test("searchTextService preserves the stable public envelope for partial results
   assert.equal(result.status, "partial");
   assert.equal(
     result.summary,
-    "Found 5 text matches across 3 files for 'loader' and returned a truncated subset.",
+    "Found 5 text matches across 3 files for 'loader' and returned a truncated subset. Use topFiles to prioritize reads, or switch to code.find_symbol plus trace tools when you need semantic analysis.",
   );
   assert.deepEqual(result.data, {
     fileCount: 1,

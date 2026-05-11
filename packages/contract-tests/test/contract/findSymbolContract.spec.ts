@@ -34,7 +34,7 @@ test("TS find_symbol preserves the public contract while adding Python and Rust"
     assert.equal(exactResponse.status, "ok");
     assert.equal(
       exactResponse.summary,
-      "Found 1 symbol definition for 'UserRestController'.",
+      "Found 1 symbol definition for 'UserRestController'. Use its path as the next step for code.trace_callers or code.trace_flow.",
     );
     assert.deepEqual(exactResponse.data, {
       count: 1,
@@ -89,7 +89,7 @@ test("TS find_symbol preserves the public contract while adding Python and Rust"
     assert.equal(partialResponse.status, "partial");
     assert.equal(
       partialResponse.summary,
-      "Found 3 symbol definitions for 'Titular' and returned a truncated subset.",
+      "Found 3 symbol definitions for 'Titular' and returned a truncated subset. Choose the correct defining path, then hand it to code.trace_callers or code.trace_flow before reading files.",
     );
     assert.equal(partialResponse.meta.truncated, true);
     assert.deepEqual(partialResponse.meta.counts, {
@@ -153,7 +153,7 @@ test("TS find_symbol preserves the public contract while adding Python and Rust"
     assert.equal(pythonResponse.status, "ok");
     assert.equal(
       pythonResponse.summary,
-      "Found 1 symbol definition for 'fetch_users'.",
+      "Found 1 symbol definition for 'fetch_users'. Use its path as the next step for code.trace_callers or code.trace_flow.",
     );
     assert.deepEqual(pythonResponse.data, {
       count: 1,
@@ -196,7 +196,7 @@ test("TS find_symbol preserves the public contract while adding Python and Rust"
     assert.equal(rustResponse.status, "ok");
     assert.equal(
       rustResponse.summary,
-      "Found 1 symbol definition for 'AnalyzerRegistry'.",
+      "Found 1 symbol definition for 'AnalyzerRegistry'. Use its path as the next step for code.trace_callers or code.trace_flow.",
     );
     assert.deepEqual(rustResponse.data, {
       count: 1,
@@ -342,9 +342,9 @@ async function createSdkClient(
     { capabilities: {} },
   );
   const transport = new StdioClientTransport({
-    command: "node",
+    command: "npx",
     args: [
-      "--experimental-strip-types",
+      "tsx",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
       "stdio",

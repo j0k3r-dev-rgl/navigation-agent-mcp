@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::Node;
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::language_analyzer::LanguageAnalyzer;
 use super::super::types::{
     AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
@@ -191,7 +193,7 @@ pub(super) fn current_go_symbol(node: Node, source: &[u8]) -> Option<String> {
             .child_by_field_name("name")
             .or_else(|| {
                 (0..node.named_child_count())
-                    .filter_map(|index| node.named_child(index))
+                    .filter_map(|index| node.named_child_at(index))
                     .find(|child| child.kind() == "identifier")
             })
             .and_then(|n| node_text(n, source)),
@@ -200,13 +202,13 @@ pub(super) fn current_go_symbol(node: Node, source: &[u8]) -> Option<String> {
                 .child_by_field_name("name")
                 .or_else(|| {
                     (0..node.named_child_count())
-                        .filter_map(|index| node.named_child(index))
+                        .filter_map(|index| node.named_child_at(index))
                         .find(|child| child.kind() == "field_identifier")
                 })
                 .and_then(|n| node_text(n, source))?;
             let receiver = node.child_by_field_name("receiver").or_else(|| {
                 (0..node.named_child_count())
-                    .filter_map(|index| node.named_child(index))
+                    .filter_map(|index| node.named_child_at(index))
                     .find(|child| child.kind() == "parameter_list")
             })?;
             let owner = extract_receiver_type(receiver, source)?;
@@ -248,7 +250,7 @@ pub(super) fn extract_go_file_context(
     let mut context = GoFileContext::default();
 
     for index in 0..root.named_child_count() {
-        let Some(child) = root.named_child(index) else {
+        let Some(child) = root.named_child_at(index) else {
             continue;
         };
         match child.kind() {
@@ -296,10 +298,10 @@ fn resolve_selector_expression(
 ) -> Option<ResolvedGoCall> {
     let operand = node
         .child_by_field_name("operand")
-        .or_else(|| node.named_child(0))?;
+        .or_else(|| node.named_child_at(0))?;
     let field = node
         .child_by_field_name("field")
-        .or_else(|| node.named_child(1))?;
+        .or_else(|| node.named_child_at(1))?;
     let field_name = node_text(field, source)?;
     let operand_text = node_text(operand, source)?;
 
@@ -363,7 +365,7 @@ fn collect_local_bindings(
     let mut bindings = HashMap::new();
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() != "parameter_list" {
@@ -371,7 +373,7 @@ fn collect_local_bindings(
         }
 
         for inner in 0..child.named_child_count() {
-            let Some(parameter) = child.named_child(inner) else {
+            let Some(parameter) = child.named_child_at(inner) else {
                 continue;
             };
             if parameter.kind() != "parameter_declaration" {
@@ -401,7 +403,7 @@ fn collect_block_local_bindings(
     bindings: &mut HashMap<String, String>,
 ) {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
 
@@ -424,8 +426,8 @@ fn collect_short_var_binding(
     current_file: &Path,
     bindings: &mut HashMap<String, String>,
 ) {
-    let left = node.named_child(0);
-    let right = node.named_child(1);
+    let left = node.named_child_at(0);
+    let right = node.named_child_at(1);
     let (Some(left), Some(right)) = (left, right) else {
         return;
     };
@@ -436,7 +438,7 @@ fn collect_short_var_binding(
     };
 
     for index in 0..left.named_child_count() {
-        let Some(name_node) = left.named_child(index) else {
+        let Some(name_node) = left.named_child_at(index) else {
             continue;
         };
         if name_node.kind() != "identifier" {
@@ -455,7 +457,7 @@ fn infer_binding_type_from_expression(
     current_file: &Path,
 ) -> Option<String> {
     let expression = if node.kind() == "expression_list" {
-        node.named_child(0)?
+        node.named_child_at(0)?
     } else {
         node
     };
@@ -464,17 +466,17 @@ fn infer_binding_type_from_expression(
         "call_expression" => {
             let function = expression
                 .child_by_field_name("function")
-                .or_else(|| expression.named_child(0))?;
+                .or_else(|| expression.named_child_at(0))?;
             infer_binding_type_from_callable(function, source, file_ctx, current_file)
         }
         "unary_expression" => {
-            let operand = expression.named_child(0)?;
+            let operand = expression.named_child_at(0)?;
             infer_binding_type_from_expression(operand, source, file_ctx, current_file)
         }
         "composite_literal" => {
             let type_node = expression
                 .child_by_field_name("type")
-                .or_else(|| expression.named_child(0))?;
+                .or_else(|| expression.named_child_at(0))?;
             infer_binding_type_from_type_node(type_node, source, file_ctx, current_file)
         }
         _ => None,
@@ -495,10 +497,10 @@ fn infer_binding_type_from_callable(
         "selector_expression" => {
             let operand = node
                 .child_by_field_name("operand")
-                .or_else(|| node.named_child(0))?;
+                .or_else(|| node.named_child_at(0))?;
             let field = node
                 .child_by_field_name("field")
-                .or_else(|| node.named_child(1))?;
+                .or_else(|| node.named_child_at(1))?;
             let operand_name = node_text(operand, source)?;
             let field_name = node_text(field, source)?;
             let type_name = field_name.strip_prefix("New")?;
@@ -523,17 +525,17 @@ fn infer_binding_type_from_type_node(
 ) -> Option<String> {
     match node.kind() {
         "pointer_type" => {
-            let inner = node.named_child(0)?;
+            let inner = node.named_child_at(0)?;
             infer_binding_type_from_type_node(inner, source, file_ctx, current_file)
         }
         "type_identifier" => node_text(node, source),
         "qualified_type" | "selector_expression" => {
             let operand = node
                 .child_by_field_name("operand")
-                .or_else(|| node.named_child(0))?;
+                .or_else(|| node.named_child_at(0))?;
             let field = node
                 .child_by_field_name("field")
-                .or_else(|| node.named_child(1))?;
+                .or_else(|| node.named_child_at(1))?;
             let operand_name = node_text(operand, source)?;
             let field_name = node_text(field, source)?;
             if file_ctx.imports.contains_key(&operand_name) {
@@ -552,7 +554,7 @@ fn extract_parameter_names(node: Node, source: &[u8]) -> Vec<String> {
     let mut names = Vec::new();
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() == "identifier" {
@@ -567,7 +569,7 @@ fn extract_parameter_names(node: Node, source: &[u8]) -> Vec<String> {
 
 fn extract_parameter_type(node: Node, source: &[u8]) -> Option<String> {
     for index in 0..node.named_child_count() {
-        let child = node.named_child(index)?;
+        let child = node.named_child_at(index)?;
         if matches!(
             child.kind(),
             "type_identifier" | "qualified_type" | "pointer_type"
@@ -587,7 +589,7 @@ fn collect_imports(
     imports: &mut HashMap<String, PathBuf>,
 ) {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() == "import_spec_list" {
@@ -600,12 +602,12 @@ fn collect_imports(
 
         let path_node = child.child_by_field_name("path").or_else(|| {
             (0..child.named_child_count())
-                .filter_map(|index| child.named_child(index))
+                .filter_map(|index| child.named_child_at(index))
                 .find(|candidate| candidate.kind() == "interpreted_string_literal")
         });
         let alias_node = child.child_by_field_name("name").or_else(|| {
             (0..child.named_child_count())
-                .filter_map(|index| child.named_child(index))
+                .filter_map(|index| child.named_child_at(index))
                 .find(|candidate| candidate.kind() == "package_identifier")
         });
         let Some(path_text) = path_node.and_then(|n| node_text(n, source)) else {
@@ -636,7 +638,7 @@ fn collect_struct_fields(
     struct_fields: &mut HashMap<String, HashMap<String, String>>,
 ) {
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() != "type_spec" {
@@ -647,7 +649,7 @@ fn collect_struct_fields(
         };
         let type_node = child.child_by_field_name("type").or_else(|| {
             (0..child.named_child_count())
-                .filter_map(|inner| child.named_child(inner))
+                .filter_map(|inner| child.named_child_at(inner))
                 .find(|candidate| candidate.kind() != "type_identifier")
         });
         let Some(type_node) = type_node else {
@@ -667,14 +669,14 @@ fn collect_struct_fields(
 fn extract_struct_field_map(node: Node, source: &[u8]) -> HashMap<String, String> {
     let mut result = HashMap::new();
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         if child.kind() != "field_declaration_list" {
             continue;
         }
         for field_index in 0..child.named_child_count() {
-            let Some(field) = child.named_child(field_index) else {
+            let Some(field) = child.named_child_at(field_index) else {
                 continue;
             };
             if field.kind() != "field_declaration" {
@@ -683,7 +685,7 @@ fn extract_struct_field_map(node: Node, source: &[u8]) -> HashMap<String, String
             let mut names = Vec::new();
             let mut field_type = None;
             for item_index in 0..field.named_child_count() {
-                let Some(item) = field.named_child(item_index) else {
+                let Some(item) = field.named_child_at(item_index) else {
                     continue;
                 };
                 match item.kind() {
@@ -710,10 +712,10 @@ fn extract_struct_field_map(node: Node, source: &[u8]) -> HashMap<String, String
 
 pub(super) fn extract_receiver_type(receiver: Node, source: &[u8]) -> Option<String> {
     for index in 0..receiver.named_child_count() {
-        let child = receiver.named_child(index)?;
+        let child = receiver.named_child_at(index)?;
         if child.kind() == "parameter_declaration" {
             for inner in 0..child.named_child_count() {
-                let candidate = child.named_child(inner)?;
+                let candidate = child.named_child_at(inner)?;
                 if matches!(
                     candidate.kind(),
                     "type_identifier" | "qualified_type" | "pointer_type"

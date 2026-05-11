@@ -3,6 +3,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 
 #[derive(Clone)]
@@ -414,7 +416,7 @@ fn collect_java_callees(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_java_callees(child, source, next_function.clone(), ctx, callees);
         }
     }
@@ -494,7 +496,7 @@ fn extract_file_context(root: Node, source: &[u8]) -> JavaFileContext {
     let mut class_fields: HashMap<String, String> = HashMap::new();
 
     for index in 0..root.named_child_count() {
-        if let Some(child) = root.named_child(index) {
+        if let Some(child) = root.named_child_at(index) {
             match child.kind() {
                 "package_declaration" => {
                     if let Some(name_node) = child.child_by_field_name("name") {
@@ -543,7 +545,7 @@ fn extract_import(node: Node, source: &[u8]) -> Option<(String, String)> {
 
 fn collect_class_fields(body: Node, source: &[u8], fields: &mut HashMap<String, String>) {
     for index in 0..body.named_child_count() {
-        if let Some(child) = body.named_child(index) {
+        if let Some(child) = body.named_child_at(index) {
             if child.kind() == "field_declaration" {
                 extract_field_declaration(child, source, fields);
             }
@@ -561,7 +563,7 @@ fn extract_field_declaration(node: Node, source: &[u8], fields: &mut HashMap<Str
     let type_name = type_node.and_then(|n| java_node_text(n, source));
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             if child.kind() == "variable_declarator" {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if let Some(field_name) = java_node_text(name_node, source) {

@@ -3,6 +3,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{infer_public_language, CalleeDefinition, FindCalleesQuery};
 use super::common::node_text;
 
@@ -104,7 +106,7 @@ fn collect_rust_callees(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_rust_callees(child, source, next_function.clone(), ctx, callees);
         }
     }
@@ -214,7 +216,7 @@ fn extract_impl_owner_name(impl_item: Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..impl_item.named_child_count() {
-        let child = impl_item.named_child(index)?;
+        let child = impl_item.named_child_at(index)?;
         if matches!(
             child.kind(),
             "type_identifier"
@@ -280,7 +282,7 @@ fn collect_rust_local_bindings_recursive(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_rust_local_bindings_recursive(child, source, owner_name, bindings);
         }
     }
@@ -294,7 +296,7 @@ fn extract_rust_binding(
     let mut identifier_node = None;
     let mut value_node = None;
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         match child.kind() {
@@ -339,7 +341,7 @@ fn extract_rust_call_target(node: Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         match child.kind() {

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{
     infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
     FindCallersQuery,
@@ -93,7 +94,7 @@ fn collect_java_callers(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_java_callers(
                 child,
                 source,
@@ -159,7 +160,7 @@ fn extract_probable_entry_point_reasons(node: Node, source: &[u8]) -> Vec<String
 
     let mut reasons = Vec::new();
     for index in 0..modifiers.named_child_count() {
-        let Some(child) = modifiers.named_child(index) else {
+        let Some(child) = modifiers.named_child_at(index) else {
             continue;
         };
         let annotation_name = match child.kind() {

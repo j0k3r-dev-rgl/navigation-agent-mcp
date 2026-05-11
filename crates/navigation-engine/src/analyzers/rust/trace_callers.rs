@@ -3,6 +3,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{
     infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
     FindCallersQuery,
@@ -36,6 +38,8 @@ struct FunctionContext {
 struct ResolvedCall {
     symbol: String,
     receiver_type: Option<String>,
+    is_local_module_scoped: bool,
+    is_unqualified_symbol: bool,
 }
 
 pub(super) fn find_callers(
@@ -119,7 +123,7 @@ fn walk_for_callers(
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         walk_for_callers(child, source, next_context.clone(), ctx, callers);
@@ -163,6 +167,19 @@ fn extract_call_reference(
 ) -> Option<CallerDefinition> {
     let call_target = extract_call_target(node, source, function_context)?;
     let receiver_type = call_target.receiver_type.clone();
+    if ctx.target.owner.is_none()
+        && call_target.is_local_module_scoped
+        && !shares_parent_module(ctx.current_file, ctx.target_path)
+    {
+        return None;
+    }
+    if ctx.target.owner.is_none()
+        && !ctx.same_file_target
+        && call_target.is_unqualified_symbol
+        && call_target.symbol == ctx.target.base
+    {
+        return None;
+    }
     if !ctx.target.matches(call_target.symbol.as_str()) {
         return None;
     }
@@ -236,20 +253,27 @@ fn extract_call_target(
                     Some(ResolvedCall {
                         symbol,
                         receiver_type: receiver,
+                        is_local_module_scoped: false,
+                        is_unqualified_symbol: false,
                     })
                 }
                 "scoped_identifier" => {
                     let raw = node_text(function, source)?;
+                    let is_local_module_scoped = raw.starts_with("super::") || raw.starts_with("self::");
                     Some(ResolvedCall {
                         symbol: qualify_scoped_target(node, &raw, source),
                         receiver_type: None,
+                        is_local_module_scoped,
+                        is_unqualified_symbol: false,
                     })
                 }
                 _ => {
                     let raw = node_text(function, source)?;
                     Some(ResolvedCall {
+                        is_unqualified_symbol: function.kind() == "identifier",
                         symbol: raw,
                         receiver_type: None,
+                        is_local_module_scoped: false,
                     })
                 }
             }
@@ -273,10 +297,22 @@ fn extract_call_target(
             Some(ResolvedCall {
                 symbol,
                 receiver_type: receiver,
+                is_local_module_scoped: false,
+                is_unqualified_symbol: false,
             })
         }
         _ => None,
     }
+}
+
+fn shares_parent_module(current_file: &Path, target_path: &Path) -> bool {
+    let Some(current_parent) = current_file.parent() else {
+        return false;
+    };
+    let Some(target_parent) = target_path.parent() else {
+        return false;
+    };
+    normalize_path(current_parent) == normalize_path(target_parent)
 }
 
 fn normalize_path(path: &Path) -> String {
@@ -352,7 +388,7 @@ fn extract_impl_owner_name(impl_item: Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..impl_item.named_child_count() {
-        let child = impl_item.named_child(index)?;
+        let child = impl_item.named_child_at(index)?;
         if matches!(
             child.kind(),
             "type_identifier"
@@ -408,7 +444,7 @@ fn collect_rust_local_bindings_recursive(
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         collect_rust_local_bindings_recursive(child, source, owner_name, bindings);
@@ -423,7 +459,7 @@ fn extract_rust_binding(
     let mut identifier_node = None;
     let mut value_node = None;
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         match child.kind() {
@@ -459,7 +495,7 @@ fn extract_rust_call_target(node: Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         match child.kind() {

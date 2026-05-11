@@ -44,6 +44,81 @@ fn traces_direct_and_recursive_typescript_callers() {
 }
 
 #[test]
+fn traces_typescript_top_level_callers_for_imported_function_with_js_specifier() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("app")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("bin")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("tools")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("app/createMcpServer.ts"),
+        "import { registerCodeTools } from '../tools/registerCodeTools.js';\nexport function createMcpServer() {\n  return registerCodeTools();\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("tools/registerCodeTools.ts"),
+        "export function registerCodeTools() {\n  return [];\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("bin/navigation-mcp.ts"),
+        "import { createMcpServer } from '../app/createMcpServer.js';\nconst server = createMcpServer();\nvoid server;\n",
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "app/createMcpServer.ts".to_string(),
+            symbol: "createMcpServer".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: Some("typescript".to_string()),
+            recursive: false,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].path, "bin/navigation-mcp.ts");
+}
+
+#[test]
+fn traces_typescript_imported_callers_across_js_specifier_source_files() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("app")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("tools")).unwrap();
+
+    std::fs::write(
+        workspace.path().join("app/createMcpServer.ts"),
+        "import { registerCodeTools } from '../tools/registerCodeTools.js';\nexport function createMcpServer() {\n  return registerCodeTools();\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("tools/registerCodeTools.ts"),
+        "export function registerCodeTools() {\n  return [];\n}\n",
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "tools/registerCodeTools.ts".to_string(),
+            symbol: "registerCodeTools".to_string(),
+            analyzer_language: "typescript".to_string(),
+            public_language_filter: Some("typescript".to_string()),
+            recursive: false,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(result.items[0].path, "app/createMcpServer.ts");
+    assert_eq!(result.items[0].caller_symbol.as_deref(), Some("createMcpServer"));
+}
+
+#[test]
 fn traces_java_callers_and_classifies_probable_public_entry_points() {
     let workspace = tempdir().unwrap();
     std::fs::create_dir_all(workspace.path().join("src/main/java/com/example")).unwrap();
@@ -288,6 +363,120 @@ fn traces_go_method_value_callers_from_handler_registration() {
     assert_eq!(result.items[0].path, "cmd/api/main.go");
     assert_eq!(result.items[0].caller_symbol.as_deref(), Some("main"));
     assert_eq!(result.items[0].relation, "references");
+}
+
+#[test]
+fn trace_callers_rust_scoped_super_calls_do_not_cross_match_other_analyzers() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("crates/navigation-engine/src/analyzers/rust"))
+        .unwrap();
+    std::fs::create_dir_all(workspace.path().join("crates/navigation-engine/src/analyzers/go"))
+        .unwrap();
+    std::fs::create_dir_all(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/csharp"),
+    )
+    .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/rust/find_symbol.rs"),
+        "pub(super) fn find_symbols() {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/rust/common.rs"),
+        "pub fn collect() { super::find_symbol::find_symbols(); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/go/common.rs"),
+        "pub fn collect() { super::find_symbol::find_symbols(); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/csharp/common.rs"),
+        "pub fn collect() { super::find_symbol::find_symbols(); }\n",
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "crates/navigation-engine/src/analyzers/rust/find_symbol.rs".to_string(),
+            symbol: "find_symbols".to_string(),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: Some("rust".to_string()),
+            recursive: false,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.total_matched, 1);
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(
+        result.items[0].path,
+        "crates/navigation-engine/src/analyzers/rust/common.rs"
+    );
+}
+
+#[test]
+fn trace_callers_rust_private_homonyms_do_not_cross_match_between_files() {
+    let workspace = tempdir().unwrap();
+    std::fs::create_dir_all(workspace.path().join("crates/navigation-engine/src/analyzers/rust"))
+        .unwrap();
+
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/rust/find_symbol.rs"),
+        "fn collect_impl_methods() {\n    extract_impl_owner_name();\n}\n\nfn extract_impl_owner_name() {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/rust/trace_flow.rs"),
+        "fn enclosing_impl_owner() {\n    extract_impl_owner_name();\n}\n\nfn extract_impl_owner_name() {}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace
+            .path()
+            .join("crates/navigation-engine/src/analyzers/rust/trace_callers.rs"),
+        "fn enclosing_impl_owner() {\n    extract_impl_owner_name();\n}\n\nfn extract_impl_owner_name() {}\n",
+    )
+    .unwrap();
+
+    let result = trace_callers(
+        workspace.path().to_string_lossy().as_ref(),
+        TraceCallersRequestPayload {
+            path: "crates/navigation-engine/src/analyzers/rust/find_symbol.rs".to_string(),
+            symbol: "extract_impl_owner_name".to_string(),
+            analyzer_language: "rust".to_string(),
+            public_language_filter: Some("rust".to_string()),
+            recursive: false,
+            max_depth: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.total_matched, 1);
+    assert_eq!(result.items.len(), 1);
+    assert_eq!(
+        result.items[0].path,
+        "crates/navigation-engine/src/analyzers/rust/find_symbol.rs"
+    );
+    assert_eq!(result.items[0].caller_symbol.as_deref(), Some("collect_impl_methods"));
 }
 
 #[test]

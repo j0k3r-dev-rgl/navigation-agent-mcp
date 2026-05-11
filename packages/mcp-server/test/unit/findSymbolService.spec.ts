@@ -181,7 +181,7 @@ test("findSymbolService preserves partial summaries and truncation metadata", as
   assert.equal(result.status, "partial");
   assert.equal(
     result.summary,
-    "Found 3 symbol definitions for 'loader' and returned a truncated subset.",
+    "Found 3 symbol definitions for 'loader' and returned a truncated subset. Choose the correct defining path, then hand it to code.trace_callers or code.trace_flow before reading files.",
   );
   assert.equal(result.data.count, 3);
   assert.equal(result.data.returnedCount, 1);

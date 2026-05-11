@@ -2,6 +2,8 @@ use std::path::Path;
 
 use tree_sitter::Node;
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::language_analyzer::LanguageAnalyzer;
 use super::super::types::{
     AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
@@ -72,7 +74,7 @@ pub(super) fn node_text(node: Node, source: &[u8]) -> Option<String> {
 pub(super) fn impl_body(node: Node) -> Option<Node> {
     node.child_by_field_name("body").or_else(|| {
         (0..node.named_child_count())
-            .filter_map(|index| node.named_child(index))
+            .filter_map(|index| node.named_child_at(index))
             .find(|child| child.kind() == "declaration_list")
     })
 }

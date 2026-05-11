@@ -262,9 +262,9 @@ async function createSdkClient(
     { capabilities: {} },
   );
   const transport = new StdioClientTransport({
-    command: "node",
+    command: "npx",
     args: [
-      "--experimental-strip-types",
+      "tsx",
       "packages/mcp-server/src/bin/navigation-mcp.ts",
       "--transport",
       "stdio",

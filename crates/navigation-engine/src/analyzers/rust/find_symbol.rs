@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{infer_public_language, FindSymbolQuery, SymbolDefinition};
 use super::common::{impl_body, node_text};
 
@@ -40,7 +41,7 @@ fn collect_source_file_symbols(
     symbols: &mut Vec<SymbolDefinition>,
 ) {
     for index in 0..root.named_child_count() {
-        let Some(child) = root.named_child(index) else {
+        let Some(child) = root.named_child_at(index) else {
             continue;
         };
 
@@ -74,7 +75,7 @@ fn collect_impl_methods(
     };
 
     for index in 0..body.named_child_count() {
-        let Some(child) = body.named_child(index) else {
+        let Some(child) = body.named_child_at(index) else {
             continue;
         };
 
@@ -139,7 +140,7 @@ fn extract_impl_owner_name(impl_item: Node, source: &[u8]) -> Option<String> {
     }
 
     for index in 0..impl_item.named_child_count() {
-        let child = impl_item.named_child(index)?;
+        let child = impl_item.named_child_at(index)?;
         if matches!(
             child.kind(),
             "type_identifier"

@@ -2,6 +2,8 @@ use std::path::Path;
 
 use tree_sitter::Node;
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::language_analyzer::LanguageAnalyzer;
 use super::super::types::{
     AnalyzerLanguage, CalleeDefinition, CallerDefinition, EndpointDefinition, FindCalleesQuery,
@@ -75,7 +77,7 @@ pub(super) fn node_text(node: Node, source: &[u8]) -> Option<String> {
 
 pub(super) fn find_modifiers_child<'a>(node: &Node<'a>) -> Option<Node<'a>> {
     for i in 0..node.child_count() {
-        if let Some(child) = node.child(i) {
+        if let Some(child) = node.child_at(i) {
             if child.kind() == "modifiers" {
                 return Some(child);
             }

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
 use super::super::types::{
     infer_public_language, normalize_public_endpoint_kind, EndpointDefinition, FindEndpointsQuery,
 };
@@ -56,7 +57,7 @@ fn collect_endpoints(
 ) {
     if node.kind() != "class_declaration" {
         for index in 0..node.named_child_count() {
-            if let Some(child) = node.named_child(index) {
+            if let Some(child) = node.named_child_at(index) {
                 collect_endpoints(child, source, public_language, endpoints);
             }
         }
@@ -83,7 +84,7 @@ fn collect_endpoints(
     };
 
     for index in 0..class_body.named_child_count() {
-        if let Some(child) = class_body.named_child(index) {
+        if let Some(child) = class_body.named_child_at(index) {
             if child.kind() == "method_declaration" {
                 if is_rest_controller {
                     extract_rest_endpoints(
@@ -124,7 +125,7 @@ fn extract_rest_endpoints(
     ];
 
     for index in 0..modifiers.named_child_count() {
-        if let Some(child) = modifiers.named_child(index) {
+        if let Some(child) = modifiers.named_child_at(index) {
             let (annotation_name, path) = match child.kind() {
                 "marker_annotation" => (extract_marker_annotation_name(&child, source), None),
                 "annotation" => (
@@ -172,7 +173,7 @@ fn extract_graphql_endpoints(
     let graphql_annotations = ["QueryMapping", "MutationMapping", "SubscriptionMapping"];
 
     for index in 0..modifiers.named_child_count() {
-        if let Some(child) = modifiers.named_child(index) {
+        if let Some(child) = modifiers.named_child_at(index) {
             let annotation_name = match child.kind() {
                 "marker_annotation" => extract_marker_annotation_name(&child, source),
                 "annotation" => extract_annotation_name(&child, source),
@@ -223,7 +224,7 @@ fn check_controller_type(modifiers: &Node, source: &[u8]) -> (bool, bool) {
     let mut is_graphql = false;
 
     for index in 0..modifiers.named_child_count() {
-        if let Some(child) = modifiers.named_child(index) {
+        if let Some(child) = modifiers.named_child_at(index) {
             let annotation_name = match child.kind() {
                 "marker_annotation" => extract_marker_annotation_name(&child, source),
                 "annotation" => extract_annotation_name(&child, source),
@@ -243,7 +244,7 @@ fn check_controller_type(modifiers: &Node, source: &[u8]) -> (bool, bool) {
 
 fn extract_request_mapping_path(modifiers: &Node, source: &[u8]) -> Option<String> {
     for index in 0..modifiers.named_child_count() {
-        if let Some(child) = modifiers.named_child(index) {
+        if let Some(child) = modifiers.named_child_at(index) {
             if child.kind() == "annotation" {
                 let name = extract_annotation_name(&child, source);
                 if name.as_deref() == Some("RequestMapping") {
@@ -259,10 +260,10 @@ fn extract_annotation_path(node: &Node, source: &[u8]) -> Option<String> {
     let args = node.child_by_field_name("arguments")?;
 
     for index in 0..args.named_child_count() {
-        if let Some(arg) = args.named_child(index) {
+        if let Some(arg) = args.named_child_at(index) {
             if arg.kind() == "string_literal" {
                 for i in 0..arg.named_child_count() {
-                    if let Some(fragment) = arg.named_child(i) {
+                    if let Some(fragment) = arg.named_child_at(i) {
                         if fragment.kind() == "string_fragment" {
                             return node_text(fragment, source);
                         }

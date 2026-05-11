@@ -3,6 +3,8 @@ use std::path::Path;
 
 use tree_sitter::{Node, Parser};
 
+use crate::tree_sitter_ext::NodeExt;
+
 use super::super::types::{
     infer_public_language, CallerCallSite, CallerDefinition, CallerRange, CallerTarget,
     FindCallersQuery,
@@ -126,7 +128,7 @@ fn collect_go_callers(
     }
 
     for index in 0..node.named_child_count() {
-        let Some(child) = node.named_child(index) else {
+        let Some(child) = node.named_child_at(index) else {
             continue;
         };
         collect_go_callers(child, source, next_function.clone(), ctx, callers);
@@ -141,7 +143,7 @@ fn extract_go_caller(
 ) -> Option<CallerDefinition> {
     let function = node
         .child_by_field_name("function")
-        .or_else(|| node.named_child(0))?;
+        .or_else(|| node.named_child_at(0))?;
     let resolved = resolve_go_call_target(
         function,
         source,
@@ -198,7 +200,7 @@ fn extract_go_method_value_caller(
         if parent.kind() == "call_expression" {
             let function_node = parent
                 .child_by_field_name("function")
-                .or_else(|| parent.named_child(0));
+                .or_else(|| parent.named_child_at(0));
             if function_node.is_some_and(|function| function.id() == node.id()) {
                 return None;
             }
@@ -359,7 +361,7 @@ fn collect_types_from_node(
     }
 
     for index in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(index) {
+        if let Some(child) = node.named_child_at(index) {
             collect_types_from_node(child, source, interface_methods, concrete_methods);
         }
     }
@@ -385,7 +387,7 @@ fn collect_interface_methods(
 
     let entry = interface_methods.entry(interface_name).or_default();
     for index in 0..type_node.named_child_count() {
-        let Some(method_elem) = type_node.named_child(index) else {
+        let Some(method_elem) = type_node.named_child_at(index) else {
             continue;
         };
         if method_elem.kind() != "method_elem" {
@@ -396,7 +398,7 @@ fn collect_interface_methods(
             .and_then(|name| node_text(name, source))
             .or_else(|| {
                 (0..method_elem.named_child_count())
-                    .filter_map(|idx| method_elem.named_child(idx))
+                    .filter_map(|idx| method_elem.named_child_at(idx))
                     .find(|n| n.kind() == "field_identifier")
                     .and_then(|n| node_text(n, source))
             })

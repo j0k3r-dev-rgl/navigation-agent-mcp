@@ -48,7 +48,10 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
     assert.equal(response.ok, true);
     assert.equal(response.result.tool, "code.find_symbol");
     assert.equal(response.result.status, "ok");
-    assert.equal(response.result.summary, "Found 1 symbol definition for 'ExampleService'.");
+    assert.equal(
+      response.result.summary,
+      "Found 1 symbol definition for 'ExampleService'. Use its path as the next step for code.trace_callers or code.trace_flow.",
+    );
     assert.equal(response.result.data.items[0].kind, "class");
     assert.equal(response.result.data.items[0].language, "java");
     assert.equal(response.result.meta.detection.effectiveLanguage, "java");
@@ -93,7 +96,10 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
     assert.equal(response.ok, true);
     assert.equal(response.result.tool, "code.find_symbol");
     assert.equal(response.result.status, "ok");
-    assert.equal(response.result.summary, "Found 1 symbol definition for 'fetch_users'.");
+    assert.equal(
+      response.result.summary,
+      "Found 1 symbol definition for 'fetch_users'. Use its path as the next step for code.trace_callers or code.trace_flow.",
+    );
     assert.deepEqual(response.result.data, {
       count: 1,
       returnedCount: 1,
@@ -149,7 +155,10 @@ test("stdio runtime returns migrated find_symbol responses for Java and partial 
     assert.equal(response.ok, true);
     assert.equal(response.result.tool, "code.find_symbol");
     assert.equal(response.result.status, "ok");
-    assert.equal(response.result.summary, "Found 1 symbol definition for 'AnalyzerRegistry'.");
+    assert.equal(
+      response.result.summary,
+      "Found 1 symbol definition for 'AnalyzerRegistry'. Use its path as the next step for code.trace_callers or code.trace_flow.",
+    );
     assert.deepEqual(response.result.data, {
       count: 1,
       returnedCount: 1,
