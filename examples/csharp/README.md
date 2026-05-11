@@ -93,3 +93,11 @@ Este ejemplo está diseñado para:
 1. Validar búsqueda de símbolos C# sobre records, interfaces, clases y métodos.
 2. Probar `trace_flow` con helpers privados y cruces entre servicios e infraestructura.
 3. Probar `trace_callers` sobre métodos reutilizados por más de un servicio.
+
+## Verificación
+
+Se pueden validar el funcionamiento de `trace_callers` y `trace_flow` ejecutando los scripts de runtime:
+```bash
+node test-runtime/test-csharp-trace-callers.mjs
+node test-runtime/test-csharp-trace-flow.mjs
+```

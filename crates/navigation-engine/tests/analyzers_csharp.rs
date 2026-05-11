@@ -138,3 +138,36 @@ namespace Example
     assert_eq!(internal_callers[0].caller, "OrderService.ProcessAsync");
     assert_eq!(internal_callers[0].receiver_type, None);
 }
+
+#[test]
+fn finds_csharp_callees_including_static_calls() {
+    let analyzer = CsharpAnalyzer;
+    let source = r#"
+namespace Example
+{
+    public class OrderService
+    {
+        public void Process()
+        {
+            Logger.Log("starting");
+            DoInternal();
+        }
+
+        private void DoInternal() {}
+    }
+}
+"#;
+
+    let items = analyzer.find_callees(
+        Path::new("src/OrderService.cs"),
+        source,
+        &navigation_engine::analyzers::types::FindCalleesQuery {
+            target_symbol: "OrderService.Process".to_string(),
+        },
+    );
+
+    assert_eq!(items.len(), 2);
+    let names: Vec<&str> = items.iter().map(|i| i.callee.as_str()).collect();
+    assert!(names.contains(&"Logger.Log"));
+    assert!(names.contains(&"DoInternal"));
+}

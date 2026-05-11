@@ -49,11 +49,11 @@ impl LanguageAnalyzer for CsharpAnalyzer {
 
     fn find_callees(
         &self,
-        _path: &Path,
-        _source: &str,
-        _query: &FindCalleesQuery,
+        path: &Path,
+        source: &str,
+        query: &FindCalleesQuery,
     ) -> Vec<CalleeDefinition> {
-        Vec::new()
+        super::trace_flow::find_callees(path, source, query)
     }
 
     fn supports_framework(&self, _framework: Option<&str>) -> bool {
