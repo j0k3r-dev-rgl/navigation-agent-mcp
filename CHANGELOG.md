@@ -1,3 +1,10 @@
+## [0.8.2](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.8.1...v0.8.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* **npm:** publish package README metadata ([3e4fa7e](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/3e4fa7e2a27f5ad1ec68bb2320d042ed58290bdb))
+
 ## [0.8.1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.8.0...v0.8.1) (2026-05-12)
 
 
