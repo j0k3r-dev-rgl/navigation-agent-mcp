@@ -4,13 +4,14 @@
   "description": "Workspace-only MCP server for structural code discovery, symbol lookup, impact analysis, and downstream flow tracing before reading or modifying code.",
   "type": "module",
   "bin": {
-    "navigation-mcp": "./dist/bin/navigation-mcp.js"
+    "navigation-mcp": "dist/bin/navigation-mcp.js"
   },
   "exports": {
     ".": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "engines": {
     "node": ">=18"
@@ -40,7 +41,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/j0k3r-dev-rgl/navigation-agent-mcp.git"
+    "url": "git+https://github.com/j0k3r-dev-rgl/navigation-agent-mcp.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/j0k3r-dev-rgl/navigation-agent-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/issues"
   },
   "keywords": [
     "mcp",
