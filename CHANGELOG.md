@@ -1,3 +1,10 @@
+## [0.8.3](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.8.2...v0.8.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* **mcp:** report package version in tool guidance ([e0e0df0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/e0e0df0d39ec6dc8b679b7d8a02a5b0cfb941397))
+
 ## [0.8.2](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.8.1...v0.8.2) (2026-05-12)
 
 

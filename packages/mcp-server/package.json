@@ -1,6 +1,6 @@
 {
   "name": "@navigation-agent/mcp-server",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Workspace-only MCP server for structural code discovery, symbol lookup, impact analysis, and downstream flow tracing before reading or modifying code.",
   "type": "module",
   "bin": {
@@ -23,11 +23,11 @@
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "optionalDependencies": {
-    "@navigation-agent/mcp-server-linux-x64": "0.8.2",
-    "@navigation-agent/mcp-server-linux-arm64": "0.8.2",
-    "@navigation-agent/mcp-server-darwin-x64": "0.8.2",
-    "@navigation-agent/mcp-server-darwin-arm64": "0.8.2",
-    "@navigation-agent/mcp-server-win32-x64": "0.8.2"
+    "@navigation-agent/mcp-server-linux-x64": "0.8.3",
+    "@navigation-agent/mcp-server-linux-arm64": "0.8.3",
+    "@navigation-agent/mcp-server-darwin-x64": "0.8.3",
+    "@navigation-agent/mcp-server-darwin-arm64": "0.8.3",
+    "@navigation-agent/mcp-server-win32-x64": "0.8.3"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
