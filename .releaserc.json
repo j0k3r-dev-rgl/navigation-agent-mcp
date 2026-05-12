@@ -15,7 +15,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "node scripts/set-version.mjs ${nextRelease.version} && npm install --package-lock-only",
+        "prepareCmd": "node scripts/set-version.mjs ${nextRelease.version} && npm install --package-lock-only && node scripts/repair-platform-lockfile.mjs ${nextRelease.version}",
         "publishCmd": "node scripts/publish-npm-release.mjs ${nextRelease.version}"
       }
     ],
