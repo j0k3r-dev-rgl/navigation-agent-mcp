@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
-import { createMcpServer, NAVIGATION_MCP_INSTRUCTIONS } from "../../src/app/createMcpServer.js";
+import {
+  createMcpServer,
+  NAVIGATION_MCP_INSTRUCTIONS,
+  NAVIGATION_MCP_VERSION,
+} from "../../src/app/createMcpServer.js";
 import type { EngineClient } from "../../src/engine/rustEngineClient.js";
 
 class MockEngineClient implements EngineClient {
@@ -109,7 +113,9 @@ test("registers the stable six code tools with expected schema defaults", () => 
   const toolsByName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
 
   assert.equal(server.instructions, NAVIGATION_MCP_INSTRUCTIONS);
+  assert.equal(server.version, NAVIGATION_MCP_VERSION);
   assert.match(server.instructions, /code\.find_symbol/);
+  assert.match(server.instructions, /search_text/);
   assert.match(server.instructions, /php/);
   assert.match(server.instructions, /csharp/);
 
@@ -198,11 +204,13 @@ test("--describe-tools stays transport-agnostic while reporting the SDK runtime"
     runtime: string;
     transports: string[];
     instructions: string;
+    version: string;
     toolCount: number;
     tools: Array<Record<string, unknown>>;
   };
 
   assert.equal(described.runtime, "navigation-sdk-stdio");
+  assert.equal(described.version, NAVIGATION_MCP_VERSION);
   assert.deepEqual(described.transports, ["stdio", "stdio-legacy"]);
   assert.equal(described.instructions, NAVIGATION_MCP_INSTRUCTIONS);
   assert.ok(described.instructions.length < 2000);

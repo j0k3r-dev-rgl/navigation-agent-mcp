@@ -41,8 +41,11 @@ Use this skill for workspace-only code discovery: locating files, symbols, route
 2. Start with the most specific navigation tool from the decision table.
 3. Chain tool outputs: pass `find_symbol.items[].path` as `path` to `trace_flow` or `trace_callers`.
 4. Remember direction: `trace_flow` is downstream behavior; `trace_callers` is upstream impact.
-5. If results are empty or `truncated: true`, narrow `path`, `limit`, `kind`, or `language` before falling back.
-6. Read only the small set of files needed to answer or edit safely.
+5. If `find_symbol` misses constants, config keys, decorators, imports, or generated names, use `code.search_text` scoped by `path`, `include`, and `language`.
+6. If trace output is too broad, narrow `path`, `language`, `framework`, or `symbol`; for `trace_callers`, lower `max_depth`.
+7. If endpoint discovery returns zero, retry with a narrower `path` and the most specific `framework` or `kind` before concluding there is no public surface.
+8. If results are empty or `truncated: true`, narrow before reading files or increasing `limit`.
+9. Read only the small set of files needed to answer or edit safely.
 
 ## Output Contract
 

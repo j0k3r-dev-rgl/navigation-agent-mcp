@@ -1,5 +1,6 @@
 import { McpServer as SdkMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { readFileSync } from "node:fs";
 import { RustEngineClient, type EngineClient } from "../engine/rustEngineClient.js";
 import { createFindSymbolService } from "../services/findSymbolService.js";
 import { createInspectTreeService } from "../services/inspectTreeService.js";
@@ -24,12 +25,15 @@ export const NAVIGATION_MCP_INSTRUCTIONS = [
   "Canonical tools are code.inspect_tree, code.find_symbol, code.list_endpoints, code.search_text, code.trace_flow, and code.trace_callers. Some clients may display them with a server prefix; preserve the code.* semantics.",
   "Supported language filters are typescript, javascript, go, java, php, python, rust, and csharp. Supported framework filters are react-router and spring.",
   "Workflow: inspect_tree for unknown areas; find_symbol when you know a symbol; pass find_symbol items[].path to trace_callers for upstream impact and trace_flow for downstream execution; list_endpoints for route/API surfaces; search_text only for textual patterns or when semantic lookup is not enough.",
+  "Fallbacks: if find_symbol misses constants, config, imports, decorators, or textual identifiers, use search_text; if trace output is too broad, narrow path, language, framework, or symbol before reading files.",
   "Do not use this server for web search, external repositories, arbitrary filesystem access, or reading file contents. After it narrows scope, read only the returned files that matter.",
 ].join(" ");
 
+export const NAVIGATION_MCP_VERSION = readPackageVersion();
+
 export interface McpServerPlan {
   name: "navigation-agent-mcp";
-  version: "0.1.0";
+  version: string;
   instructions: string;
   workspaceRoot: string;
   tools: RegisteredCodeTool[];
@@ -41,6 +45,18 @@ export interface McpServerPlan {
   serveStdio(): Promise<void>;
   serveStdioLegacy(): Promise<void>;
   close(): Promise<void>;
+}
+
+function readPackageVersion(): string {
+  try {
+    const packageJson = JSON.parse(
+      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+    ) as { version?: unknown };
+
+    return typeof packageJson.version === "string" ? packageJson.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function toSdkToolResult(result: ResponseEnvelope<unknown>) {
@@ -96,7 +112,7 @@ export function createMcpServer(
   const sdkServer = new SdkMcpServer(
     {
       name: "navigation-agent-mcp",
-      version: "0.1.0",
+      version: NAVIGATION_MCP_VERSION,
     },
     {
       instructions: NAVIGATION_MCP_INSTRUCTIONS,
@@ -117,7 +133,7 @@ export function createMcpServer(
 
   return {
     name: "navigation-agent-mcp",
-    version: "0.1.0",
+    version: NAVIGATION_MCP_VERSION,
     instructions: NAVIGATION_MCP_INSTRUCTIONS,
     workspaceRoot: options.workspaceRoot,
     tools,

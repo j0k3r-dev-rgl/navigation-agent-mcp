@@ -130,6 +130,17 @@ The important part: the server instructions are part of the MCP handshake, so cl
 5. Use `code.search_text` for textual patterns, imports, decorators, or when symbol lookup is not enough.
 6. Read only the relevant files returned by the navigation tools.
 
+### Fallbacks agents should use
+
+| Situation | Correct fallback |
+|---|---|
+| `code.find_symbol` returns zero for constants, config keys, decorators, imports, or generated names | Use `code.search_text` scoped by `path`, `include`, and `language`. |
+| A trace result is too broad or noisy | Narrow `path`, `language`, `framework`, or `symbol`; for `trace_callers`, lower `max_depth`. |
+| A route or endpoint inventory returns zero | Retry with a narrower `path` and the most specific `framework` or `kind` before concluding there is no public surface. |
+| A navigation result has `truncated: true` | Narrow the query before reading files or increasing `limit`. |
+
+Do not treat an empty result as proof by itself. Use one scoped fallback, then explain the limitation if results still stay empty.
+
 ### Tool naming in clients
 
 The canonical public contract is `code.*`. Some clients expose MCP tools with a server prefix or normalized separators, for example `navigation-agent_code_find_symbol` or `mcp_navigation-agent_code.find_symbol`. Treat those names as aliases of the same canonical tools.
