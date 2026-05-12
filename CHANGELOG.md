@@ -1,3 +1,11 @@
+## [0.8.1](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.8.0...v0.8.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **mcp:** expose navigation guidance to agents ([7df77d8](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/7df77d8c11aef653554b20741e70e885a4b504b2))
+* **release:** repair platform lockfile metadata ([1da9387](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/commit/1da9387431b9c08b491afb7a78f4baf09f048943))
+
 # [0.8.0](https://github.com/j0k3r-dev-rgl/navigation-agent-mcp/compare/v0.7.1...v0.8.0) (2026-05-11)
 
 
